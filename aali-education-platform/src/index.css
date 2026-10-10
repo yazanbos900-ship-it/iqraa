@@ -114,17 +114,11 @@ button {
 }
 
 .aali-app :where(h1, h2, h3, h4) {
-  color: var(--aali-text);
   letter-spacing: -0.025em;
   text-wrap: pretty;
 }
 
-.landing-hero h1 {
-  color: #fff;
-  letter-spacing: 0;
-}
-
-.landing-hero h2 {
+.aali-app .landing-hero :where(h1, h2, h3, h4) {
   color: #fff;
   letter-spacing: 0;
 }

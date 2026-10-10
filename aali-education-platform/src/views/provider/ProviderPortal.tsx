@@ -10,9 +10,7 @@ import {
   ProviderReviewItem, 
   StaffMember 
 } from './types';
-import { 
-  PROVIDER_TYPES_LIST, 
-} from './mockProviderData';
+import { PROVIDER_TYPE_OPTIONS } from './providerTypes';
 import { ProviderHeader } from './components/ProviderHeader';
 import { AddEditProgramModal } from './components/AddEditProgramModal';
 import { OverviewTab } from './tabs/OverviewTab';
@@ -66,7 +64,7 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
     replyToReview,
   } = usePlatformData();
   // Provider Type (Default: Schools with dynamic switcher across all 10 types)
-  const [currentType, setCurrentType] = useState<ProviderTypeOption>(PROVIDER_TYPES_LIST[0]);
+  const [currentType, setCurrentType] = useState<ProviderTypeOption>(PROVIDER_TYPE_OPTIONS[0]);
   
   // Active Tab State
   const [activeTab, setActiveTab] = useState<string>('overview');
@@ -122,8 +120,8 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
       : userProfile.providerCategory === 'training_centers'
       ? 'institutes_tech'
       : userProfile.providerCategory;
-    const category = PROVIDER_TYPES_LIST.find((item) => item.id === categoryId)
-      || PROVIDER_TYPES_LIST[0];
+    const category = PROVIDER_TYPE_OPTIONS.find((item) => item.id === categoryId)
+      || PROVIDER_TYPE_OPTIONS[0];
     setCurrentType({ ...category, institutionName: userProfile.institutionName || userProfile.displayName });
   }, [userProfile]);
 

@@ -16,13 +16,7 @@ export interface ProviderTypeOption {
   id: ProviderCategoryType;
   nameAr: string;
   categoryTag: string;
-  badge: string;
   institutionName: string;
-  licenseNumber: string;
-  licensingBody: string;
-  city: string;
-  establishedYear: number;
-  description: string;
   avatarText: string;
   avatarBg: string;
 }

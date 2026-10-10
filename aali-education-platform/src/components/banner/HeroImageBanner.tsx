@@ -50,35 +50,32 @@ const DEFAULT_BANNERS: BannerItem[] = [
   {
     id: 'b-1',
     title: 'موسم التسجيل الأكاديمي والجامعي 2026',
-    subtitle: 'منح دراسية وتسهيلات تسجيل ميسرة في نخبة الجامعات والكليات والمعاهد المعتمدة مع إمكانية التقسيط المرن.',
-    badge: 'حملة التسجيل السنوية',
-    highlightText: 'خصومات تصل إلى 30%',
+    subtitle: 'استكشف المؤسسات وبرامجها المنشورة، وقارن التفاصيل قبل إرسال طلب التسجيل.',
+    badge: 'دليل البرامج التعليمية',
     imageUrl: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?q=80&w=1600&auto=format&fit=crop',
-    ctaText: 'استكشف الجامعات والمنح',
+    ctaText: 'استكشف البرامج',
     ctaView: 'discovery',
     secondaryCtaText: 'دليل المؤسسات',
     secondaryView: 'discovery',
   },
   {
     id: 'b-2',
-    title: 'دبلومات التقنية والذكاء الاصطناعي واللغات الحية',
-    subtitle: 'برامج تطبيقية مكثفة معتمدة دولياً ومحلياً تؤهلك لسوق العمل مع خبراء ومدربين محترفين بشهادات مصادق عليها.',
-    badge: 'المعاهد المهنية والتقنية',
-    highlightText: 'شهادات دولية معتمدة',
+    title: 'برامج التقنية واللغات',
+    subtitle: 'تعرّف على البرامج المنشورة في المعاهد ومراكز التدريب، واطّلع على متطلباتها ومدتها ورسومها.',
+    badge: 'معاهد ومراكز تدريب',
     imageUrl: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?q=80&w=1600&auto=format&fit=crop',
-    ctaText: 'سجل في البرامج التقنية',
+    ctaText: 'تصفح البرامج',
     ctaView: 'discovery',
     secondaryCtaText: 'استعراض معاهد اللغات',
     secondaryView: 'discovery',
   },
   {
     id: 'b-3',
-    title: 'المدارس الدولية والخاصة: مقاعد محدودة للعام الجديد',
-    subtitle: 'بيئة تعليمية متطورة بمناهج بريطانية وأمريكية ووطنية متميزة ومختبرات STEM ذكية لكافة المراحل الدراسية.',
-    badge: 'المدارس الخاصة المعتمدة',
-    highlightText: 'مقاعد محدودة',
+    title: 'خيارات التعليم المدرسي',
+    subtitle: 'قارن بين المؤسسات المعتمدة والبرامج المنشورة، ثم تواصل مع المؤسسة لمعرفة تفاصيل القبول.',
+    badge: 'المدارس الخاصة',
     imageUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=1600&auto=format&fit=crop',
-    ctaText: 'استعراض دليل المدارس',
+    ctaText: 'استعراض المدارس',
     ctaView: 'discovery',
     secondaryCtaText: 'طلب استشارة قبول',
     secondaryView: 'discovery',
@@ -126,7 +123,7 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate, se
   const [newTitle, setNewTitle] = useState('');
   const [newSubtitle, setNewSubtitle] = useState('');
   const [newBadge, setNewBadge] = useState('عرض تعليمي حصري');
-  const [newHighlight, setNewHighlight] = useState('خصم 25%');
+  const [newHighlight, setNewHighlight] = useState('');
   const [newImageUrl, setNewImageUrl] = useState(PRESET_IMAGE_OPTIONS[0].url);
   const [newCtaText, setNewCtaText] = useState('سجل الآن بالبرنامج');
 
@@ -140,20 +137,21 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate, se
         return;
       }
 
+      let initialBanners = DEFAULT_BANNERS;
       if (canManageBanners) {
         try {
           const legacyValue = localStorage.getItem('iqra_hero_banners');
           const legacyBanners = legacyValue ? parseBannerItems(JSON.parse(legacyValue)) : null;
-          if (legacyBanners) {
-            setBanners(legacyBanners);
-            void setDoc(bannersRef, { banners: legacyBanners, updatedAt: new Date().toISOString() });
-            return;
-          }
+          const customBanners = legacyBanners?.filter((banner) => banner.isCustom) || [];
+          if (customBanners.length > 0) initialBanners = [...customBanners, ...DEFAULT_BANNERS];
         } catch {
           // Use the defaults when legacy browser data is invalid.
         }
+
+        void setDoc(bannersRef, { banners: initialBanners, updatedAt: new Date().toISOString() })
+          .catch((error) => console.error('Unable to initialize homepage banners:', error));
       }
-      setBanners(DEFAULT_BANNERS);
+      setBanners(initialBanners);
     }, (error) => {
       console.error('Unable to load homepage banners:', error);
     });

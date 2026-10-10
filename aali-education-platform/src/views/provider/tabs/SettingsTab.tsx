@@ -42,7 +42,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
 
   // Profile form
-  const [instName, setInstName] = useState(provider?.name || currentType.institutionName);
+  const [instName, setInstName] = useState(provider?.name || currentType.institutionName || '');
   const [city, setCity] = useState(provider?.city || '');
   const [desc, setDesc] = useState(provider?.description || '');
   const [phone, setPhone] = useState(provider?.contactPhone || '');
@@ -56,14 +56,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [staffEmail, setStaffEmail] = useState('');
   const [staffPhone, setStaffPhone] = useState('');
 
-  // Notification Toggles
-  const [notifInquiry, setNotifInquiry] = useState(true);
-  const [notifSeats, setNotifSeats] = useState(true);
-  const [notifReviews, setNotifReviews] = useState(true);
-  const [notifEmailDigest, setNotifEmailDigest] = useState(false);
-
   useEffect(() => {
-    setInstName(provider?.name || currentType.institutionName);
+    setInstName(provider?.name || currentType.institutionName || '');
     setCity(provider?.city || '');
     setDesc(provider?.description || '');
     setPhone(provider?.contactPhone || '');

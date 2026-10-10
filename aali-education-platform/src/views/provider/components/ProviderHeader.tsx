@@ -35,7 +35,7 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({
     ? 'approved'
     : provider?.verificationStatus || 'pending';
   const statusLabel = verificationStatus === 'approved' ? 'معتمد' : verificationStatus === 'rejected' ? 'بحاجة إلى استكمال' : 'بانتظار المراجعة';
-  const institutionName = provider?.name || currentType.nameAr || 'مزود الخدمة';
+  const institutionName = provider?.name || currentType.institutionName || 'مزود الخدمة';
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
