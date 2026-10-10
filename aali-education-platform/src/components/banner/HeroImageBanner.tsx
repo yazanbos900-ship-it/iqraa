@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { db } from '../../firebase/config';
 import { 
   ChevronRight, 
   ChevronLeft, 
   Plus, 
+  Pencil,
   Sparkles, 
   Pause, 
   Play, 
@@ -31,6 +34,17 @@ export interface BannerItem {
   secondaryView?: ActiveView;
   isCustom?: boolean;
 }
+
+const parseBannerItems = (value: unknown): BannerItem[] | null => {
+  if (!Array.isArray(value)) return null;
+  const parsed = value.filter((item): item is BannerItem => {
+    if (!item || typeof item !== 'object') return false;
+    const banner = item as Record<string, unknown>;
+    return ['id', 'title', 'subtitle', 'badge', 'imageUrl', 'ctaText']
+      .every((key) => typeof banner[key] === 'string');
+  });
+  return parsed.length > 0 ? parsed : null;
+};
 
 const DEFAULT_BANNERS: BannerItem[] = [
   {
@@ -90,32 +104,23 @@ const PRESET_IMAGE_OPTIONS = [
   },
 ];
 
+const bannersRef = doc(db, 'siteSettings', 'homepageBanners');
+
 interface HeroImageBannerProps {
   onNavigate: (view: ActiveView, extraId?: string) => void;
+  searchContent?: React.ReactNode;
 }
 
-export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) => {
+export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate, searchContent }) => {
   const { userProfile } = useAuth();
   const canManageBanners = userProfile?.role === 'admin';
-  const [banners, setBanners] = useState<BannerItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('iqra_hero_banners');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return DEFAULT_BANNERS;
-  });
+  const [banners, setBanners] = useState<BannerItem[]>(DEFAULT_BANNERS);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(true);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [editingBannerId, setEditingBannerId] = useState<string | null>(null);
 
   // New banner form state
   const [newTitle, setNewTitle] = useState('');
@@ -127,14 +132,34 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Save banners to localStorage
+  // Read shared settings and migrate any previous admin-local changes once.
   useEffect(() => {
-    try {
-      localStorage.setItem('iqra_hero_banners', JSON.stringify(banners));
-    } catch {
-      // ignore storage error
-    }
-  }, [banners]);
+    const unsubscribe = onSnapshot(bannersRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setBanners(parseBannerItems(snapshot.data().banners) || DEFAULT_BANNERS);
+        return;
+      }
+
+      if (canManageBanners) {
+        try {
+          const legacyValue = localStorage.getItem('iqra_hero_banners');
+          const legacyBanners = legacyValue ? parseBannerItems(JSON.parse(legacyValue)) : null;
+          if (legacyBanners) {
+            setBanners(legacyBanners);
+            void setDoc(bannersRef, { banners: legacyBanners, updatedAt: new Date().toISOString() });
+            return;
+          }
+        } catch {
+          // Use the defaults when legacy browser data is invalid.
+        }
+      }
+      setBanners(DEFAULT_BANNERS);
+    }, (error) => {
+      console.error('Unable to load homepage banners:', error);
+    });
+
+    return unsubscribe;
+  }, [bannersRef, canManageBanners]);
 
   // Auto-play timer
   useEffect(() => {
@@ -154,6 +179,22 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const saveBanners = async (nextBanners: BannerItem[]) => {
+    if (!canManageBanners) return false;
+    try {
+      await setDoc(bannersRef, {
+        banners: nextBanners,
+        updatedAt: new Date().toISOString(),
+      });
+      setBanners(nextBanners);
+      return true;
+    } catch (error) {
+      console.error('Unable to save homepage banners:', error);
+      showToast('تعذر حفظ البنر. تحقق من اتصال Firebase وصلاحية المشرف العام.');
+      return false;
+    }
+  };
+
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % banners.length);
   };
@@ -162,7 +203,7 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
     setCurrentIndex((prev) => (prev - 1 + banners.length) % banners.length);
   };
 
-  const handleAddBanner = (e: React.FormEvent) => {
+  const handleSaveBanner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newImageUrl.trim()) {
       showToast('يرجى كتابة عنوان البنر واختيار صورة');
@@ -170,7 +211,7 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
     }
 
     const created: BannerItem = {
-      id: `custom-b-${Date.now()}`,
+      id: editingBannerId || `custom-b-${Date.now()}`,
       title: newTitle.trim(),
       subtitle: newSubtitle.trim() || 'فرصة مميزة لاستكشاف البرامج والمؤسسات التعليمية المعتمدة.',
       badge: newBadge.trim() || 'إعلان معتمد',
@@ -183,40 +224,54 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
       isCustom: true,
     };
 
-    const updated = [created, ...banners];
-    setBanners(updated);
-    setCurrentIndex(0);
+    const editedIndex = banners.findIndex((banner) => banner.id === editingBannerId);
+    const updated = editingBannerId
+      ? banners.map((banner) => banner.id === editingBannerId ? created : banner)
+      : [created, ...banners];
+    if (!await saveBanners(updated)) return;
+    setCurrentIndex(editingBannerId && editedIndex >= 0 ? editedIndex : 0);
     setIsManageModalOpen(false);
-    showToast('تمت إضافة البنر بنجاح وتفعيله في الواجهة الرئيسية!');
+    showToast(editingBannerId ? 'تم حفظ تعديلات البنر الرئيسي للجميع.' : 'تمت إضافة البنر الرئيسي وحفظه للجميع.');
 
-    // Reset form
+    setEditingBannerId(null);
     setNewTitle('');
     setNewSubtitle('');
   };
 
-  const handleDeleteBanner = (id: string) => {
+  const handleEditBanner = (banner: BannerItem) => {
+    setEditingBannerId(banner.id);
+    setNewTitle(banner.title);
+    setNewSubtitle(banner.subtitle);
+    setNewBadge(banner.badge);
+    setNewHighlight(banner.highlightText || '');
+    setNewImageUrl(banner.imageUrl);
+    setNewCtaText(banner.ctaText);
+    document.getElementById('homepage-banner-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleDeleteBanner = async (id: string) => {
     if (banners.length <= 1) {
       showToast('يجب الاحتفاظ ببنر واحد على الأقل في الواجهة');
       return;
     }
     const updated = banners.filter((b) => b.id !== id);
-    setBanners(updated);
+    if (!await saveBanners(updated)) return;
     if (currentIndex >= updated.length) {
       setCurrentIndex(0);
     }
-    showToast('تم حذف البنر');
+    showToast('تم حذف البنر الرئيسي للجميع.');
   };
 
-  const handleResetDefaults = () => {
-    setBanners(DEFAULT_BANNERS);
+  const handleResetDefaults = async () => {
+    if (!await saveBanners(DEFAULT_BANNERS)) return;
     setCurrentIndex(0);
-    showToast('تمت استعادة البنرات الترويجية الافتراضية');
+    showToast('تمت استعادة البنرات الرئيسية الافتراضية للجميع.');
   };
 
   const activeBanner = banners[currentIndex] || DEFAULT_BANNERS[0];
 
   return (
-    <div className="relative my-8 group">
+    <section className="landing-hero relative isolate overflow-hidden bg-slate-950 text-white group" aria-label="اكتشف المؤسسات والبرامج التعليمية">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 start-6 z-50 bg-slate-900/95 text-white text-xs font-medium px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 backdrop-blur-sm border border-slate-700 animate-fade-in">
@@ -226,9 +281,7 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
       )}
 
       {/* Main Banner Card Container */}
-      <div 
-        className="relative overflow-hidden rounded-3xl bg-slate-900 border border-slate-200/80 shadow-soft-card transition-all duration-300 min-h-[280px] sm:min-h-[310px] md:min-h-[340px] flex items-center"
-      >
+      <div className="relative min-h-[520px] overflow-hidden bg-slate-900 sm:min-h-[540px] md:min-h-[560px]">
         {/* Background Image with Depth Gradients */}
         <div className="absolute inset-0 z-0">
           <img
@@ -242,7 +295,7 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
         </div>
 
         {/* Content Box */}
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-10 md:px-14 py-8 md:py-12 flex flex-col justify-between h-full">
+        <div className="relative z-10 mx-auto flex min-h-[520px] w-full max-w-7xl flex-col justify-center px-4 py-10 sm:min-h-[540px] sm:px-6 md:min-h-[560px] lg:px-8">
           <div className="max-w-2xl text-white">
             {/* Badges Bar */}
             <div className="flex flex-wrap items-center gap-2.5 mb-4">
@@ -297,8 +350,10 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
             </div>
           </div>
 
+          {searchContent && <div className="mt-8">{searchContent}</div>}
+
           {/* Bottom Bar: Indicators & Controls */}
-          <div className="pt-6 sm:pt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 mt-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/15 pt-5 mt-7">
             {/* Pagination Dots */}
             <div className="flex items-center gap-2">
               {banners.map((b, idx) => (
@@ -355,7 +410,7 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
                   className="ms-2 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-sm font-medium transition-colors cursor-pointer backdrop-blur-md border border-white/20"
                 >
                   <SlidersHorizontal className="w-4 h-4" />
-                  <span>إدارة البنرات</span>
+                  <span>إدارة البنر الرئيسي</span>
                 </button>
               )}
             </div>
@@ -374,8 +429,8 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
                   <ImageIcon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">إدارة بنرات الصور في الواجهة</h3>
-                  <p className="text-xs text-slate-500">أضف بنراً إعلانياً جديداً أو قم بتخصيص البنرات المعروضة</p>
+                  <h3 className="text-base font-bold text-slate-900">إدارة البنر الرئيسي</h3>
+                  <p className="text-xs text-slate-500">التعديلات المحفوظة تظهر لكل زوار المنصة</p>
                 </div>
               </div>
               <button
@@ -393,7 +448,7 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                     <Layers className="w-4 h-4 text-indigo-600" />
-                    البنرات الحالية ({banners.length})
+                    البنرات الرئيسية ({banners.length})
                   </h4>
                   <button
                     onClick={handleResetDefaults}
@@ -439,6 +494,14 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
                           عرض الآن
                         </button>
                         <button
+                          onClick={() => handleEditBanner(b)}
+                          className="p-1.5 text-slate-500 hover:text-indigo-700 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
+                          title="تعديل البنر"
+                          aria-label={`تعديل البنر: ${b.title}`}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => handleDeleteBanner(b.id)}
                           className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                           title="حذف البنر"
@@ -452,13 +515,13 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
               </div>
 
               {/* Add New Banner Form */}
-              <div className="pt-5 border-t border-slate-200">
+              <div id="homepage-banner-editor" className="pt-5 border-t border-slate-200 scroll-mt-4">
                 <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <Plus className="w-4 h-4 text-emerald-600" />
-                  إضافة بنر صور جديد
+                  {editingBannerId ? <Pencil className="w-4 h-4 text-indigo-600" /> : <Plus className="w-4 h-4 text-emerald-600" />}
+                  {editingBannerId ? 'تعديل البنر الرئيسي' : 'إضافة بنر رئيسي'}
                 </h4>
 
-                <form onSubmit={handleAddBanner} className="space-y-4">
+                <form onSubmit={handleSaveBanner} className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       عنوان البنر الترويجي <span className="text-rose-500">*</span>
@@ -571,7 +634,10 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
                   <div className="pt-4 flex items-center justify-end gap-2.5 border-t border-slate-100">
                     <button
                       type="button"
-                      onClick={() => setIsManageModalOpen(false)}
+                      onClick={() => {
+                        setEditingBannerId(null);
+                        setIsManageModalOpen(false);
+                      }}
                       className="px-4 py-2 text-xs font-medium text-slate-600 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
                     >
                       إلغاء
@@ -580,9 +646,9 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
                       type="submit"
                       variant="primary"
                       size="md"
-                      rightIcon={<Plus className="w-4 h-4" />}
+                      rightIcon={editingBannerId ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                     >
-                      إضافة وحفظ البنر
+                      {editingBannerId ? 'حفظ التعديلات للجميع' : 'إضافة البنر الرئيسي'}
                     </Button>
                   </div>
                 </form>
@@ -591,6 +657,6 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate }) 
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 };

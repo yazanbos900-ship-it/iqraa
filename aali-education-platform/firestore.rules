@@ -223,6 +223,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /siteSettings/{settingId} {
+      allow get: if settingId == 'homepageBanners';
+      allow list: if false;
+      allow create, update, delete: if admin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

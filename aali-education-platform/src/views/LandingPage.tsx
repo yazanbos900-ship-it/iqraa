@@ -110,89 +110,73 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
   return (
     <div className="space-y-14 pb-16">
-      {/* 1. Hero and directory search */}
-      <section className="landing-hero relative isolate overflow-hidden border-b border-slate-200 bg-slate-950 text-white">
-        <img
-          src="https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=2000&auto=format&fit=crop&q=85"
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover object-center"
-        />
-        <div className="absolute inset-0 bg-gradient-to-l from-slate-950/90 via-slate-950/70 to-slate-950/30" />
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/55 via-transparent to-slate-950/15" />
+      {/* 1. Editable hero and directory search */}
+      <HeroImageBanner
+        onNavigate={onNavigate}
+        searchContent={(
+          <div className="max-w-6xl">
+            <div className="grid grid-cols-1 gap-2.5 rounded-xl border border-white/70 bg-white p-2.5 shadow-soft-card md:grid-cols-12">
+              <div className="relative md:col-span-5">
+                <label htmlFor="provider-search" className="sr-only">ابحث عن مؤسسة تعليمية</label>
+                <Search className="absolute start-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
+                <input
+                  id="provider-search"
+                  type="search"
+                  placeholder="اسم المؤسسة أو التخصص"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="h-12 w-full rounded-lg border border-slate-200 bg-white px-4 ps-11 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/60"
+                />
+              </div>
 
-        <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
-          <div className="max-w-3xl">
-            <span className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-100">
-              <span className="h-px w-7 bg-amber-300" />
-              منصة أعالي التعليمية
-            </span>
-            <h1 className="mt-3 text-5xl font-bold leading-none text-white sm:text-6xl">أعالي</h1>
-            <p className="mt-5 max-w-2xl text-base leading-8 text-slate-100 sm:text-lg">
-              طريق أوضح لاختيار تعليمك. اكتشف مؤسسات وبرامج معتمدة، وقارن خياراتك في مكان واحد.
-            </p>
-          </div>
+              <label className="md:col-span-3">
+                <span className="sr-only">التصنيف التعليمي</span>
+                <select
+                  value={selectedCategory}
+                  onChange={(event) => setSelectedCategory(event.target.value)}
+                  className="h-12 w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/60"
+                >
+                  <option value="all">كل المجالات التعليمية</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>{category.nameAr}</option>
+                  ))}
+                </select>
+              </label>
 
-          <div className="mt-8 grid max-w-6xl grid-cols-1 gap-2.5 md:grid-cols-12">
-            <div className="relative md:col-span-5">
-              <label htmlFor="provider-search" className="sr-only">ابحث عن مؤسسة تعليمية</label>
-              <Search className="absolute start-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" aria-hidden="true" />
-              <input
-                id="provider-search"
-                type="search"
-                placeholder="اسم المؤسسة أو التخصص"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="h-12 w-full rounded-lg border border-white/70 bg-white px-4 ps-11 text-sm text-slate-900 placeholder:text-slate-500 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/60"
-              />
+              <label className="md:col-span-2">
+                <span className="sr-only">المدينة</span>
+                <select
+                  value={selectedCity}
+                  onChange={(event) => setSelectedCity(event.target.value)}
+                  className="h-12 w-full cursor-pointer rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/60"
+                >
+                  <option value="all">كل المدن</option>
+                  {availableCities.map((city) => <option key={city} value={city}>{city}</option>)}
+                </select>
+              </label>
+
+              <Button
+                variant="accent"
+                size="md"
+                className="h-12 w-full md:col-span-2"
+                onClick={() => document.getElementById('providers')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              >
+                ابحث الآن
+              </Button>
             </div>
 
-            <label className="md:col-span-3">
-              <span className="sr-only">التصنيف التعليمي</span>
-              <select
-                value={selectedCategory}
-                onChange={(event) => setSelectedCategory(event.target.value)}
-                className="h-12 w-full cursor-pointer rounded-lg border border-white/70 bg-white px-3 text-sm text-slate-800 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/60"
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-100">
+              <span>{publicProviders.length} مؤسسة تعليمية معتمدة</span>
+              <button
+                onClick={() => onNavigate('auth-register')}
+                className="font-semibold text-white underline decoration-white/50 underline-offset-4 transition-colors hover:text-amber-200"
               >
-                <option value="all">كل المجالات التعليمية</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>{category.nameAr}</option>
-                ))}
-              </select>
-            </label>
-
-            <label className="md:col-span-2">
-              <span className="sr-only">المدينة</span>
-              <select
-                value={selectedCity}
-                onChange={(event) => setSelectedCity(event.target.value)}
-                className="h-12 w-full cursor-pointer rounded-lg border border-white/70 bg-white px-3 text-sm text-slate-800 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300/60"
-              >
-                <option value="all">كل المدن</option>
-                {availableCities.map((city) => <option key={city} value={city}>{city}</option>)}
-              </select>
-            </label>
-
-            <Button
-              variant="accent"
-              size="md"
-              className="h-12 w-full md:col-span-2"
-              onClick={() => document.getElementById('providers')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            >
-              ابحث الآن
-            </Button>
+                تمثل مؤسسة؟ انضم إلى أعالي
+              </button>
+            </div>
           </div>
-
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-100">
-            <span>{publicProviders.length} مؤسسة تعليمية معتمدة</span>
-            <button
-              onClick={() => onNavigate('auth-register')}
-              className="font-semibold text-white underline decoration-white/50 underline-offset-4 transition-colors hover:text-amber-200"
-            >
-              تمثل مؤسسة؟ انضم إلى أعالي
-            </button>
-          </div>
-        </div>
-      </section>
+        )}
+      />
 
       {/* 2. Educational Categories Overview */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -244,10 +228,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             );
           })}
         </div>
-      </section>
-
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-4 w-full" aria-label="عروض وبرامج مميزة">
-        <HeroImageBanner onNavigate={onNavigate} />
       </section>
 
       {/* 3. Featured Educational Courses & Programs (New in Redesign) */}

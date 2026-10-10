@@ -124,6 +124,11 @@ button {
   letter-spacing: 0;
 }
 
+.landing-hero h2 {
+  color: #fff;
+  letter-spacing: 0;
+}
+
 .aali-app :where(p) {
   text-wrap: pretty;
 }
