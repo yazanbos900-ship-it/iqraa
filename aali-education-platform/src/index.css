@@ -1,0 +1,305 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans Arabic", "Plus Jakarta Sans", system-ui, sans-serif;
+
+  --color-slate-50: #f7f8fb;
+  --color-slate-100: #eef1f6;
+  --color-slate-200: #e3e8f0;
+  --color-slate-300: #d0d8e4;
+  --color-slate-400: #94a0b2;
+  --color-slate-500: #6b788b;
+  --color-slate-600: #526075;
+  --color-slate-700: #3b485b;
+  --color-slate-800: #263448;
+  --color-slate-900: #17253a;
+  --color-slate-950: #0d1728;
+
+  --color-indigo-50: #f0f2ff;
+  --color-indigo-100: #e1e5ff;
+  --color-indigo-200: #c7ceff;
+  --color-indigo-300: #a5b0ff;
+  --color-indigo-400: #818cf8;
+  --color-indigo-500: #6672ed;
+  --color-indigo-600: #4f5bd5;
+  --color-indigo-700: #414ab4;
+  --color-indigo-800: #363e91;
+  --color-indigo-900: #2d3473;
+  --color-indigo-950: #1d224f;
+
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.25rem;
+
+  --text-xs: 0.8125rem;
+  --text-sm: 0.875rem;
+}
+
+:root {
+  color-scheme: light;
+  --aali-bg: #f6f8fb;
+  --aali-surface: #ffffff;
+  --aali-surface-soft: #f1f4f8;
+  --aali-text: #17253a;
+  --aali-muted: #65748b;
+  --aali-border: #e2e8f0;
+  --aali-primary: #4f5bd5;
+  --aali-primary-strong: #414ab4;
+  --aali-shadow-card: 0 1px 2px rgb(17 31 54 / 4%), 0 8px 24px rgb(17 31 54 / 5%);
+  --aali-shadow-popover: 0 16px 40px rgb(17 31 54 / 14%), 0 2px 8px rgb(17 31 54 / 6%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+  background: var(--aali-bg);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--aali-bg);
+  color: var(--aali-text);
+  font-family: "IBM Plex Sans Arabic", "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+  letter-spacing: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  transition: color 160ms ease, background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+*:focus-visible {
+  outline: 3px solid rgb(79 91 213 / 36%);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #dfe3ff;
+  color: #20285c;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.aali-app {
+  min-height: 100vh;
+  background: var(--aali-bg);
+  color: var(--aali-text);
+}
+
+.aali-app :where(h1, h2, h3, h4) {
+  color: var(--aali-text);
+  letter-spacing: -0.025em;
+  text-wrap: pretty;
+}
+
+.landing-hero h1 {
+  color: #fff;
+  letter-spacing: 0;
+}
+
+.aali-app :where(p) {
+  text-wrap: pretty;
+}
+
+.aali-app :where(input, select, textarea) {
+  min-height: 44px;
+  border-color: var(--aali-border);
+  border-radius: 12px;
+  color: var(--aali-text);
+}
+
+.aali-app :where(input, select, textarea)::placeholder {
+  color: #8995a7;
+  opacity: 1;
+}
+
+.aali-app :where([class*="text-[9px]"], [class*="text-[10px]"], [class*="text-[11px]"]) {
+  font-size: 0.75rem !important;
+  line-height: 1.5;
+}
+
+.shadow-soft-card {
+  box-shadow: var(--aali-shadow-card);
+}
+
+.shadow-soft-hover:hover {
+  box-shadow: 0 12px 28px rgb(17 31 54 / 10%);
+  transform: translateY(-1px);
+}
+
+.shadow-clay-cta {
+  box-shadow: 0 5px 14px rgb(79 91 213 / 18%);
+}
+
+.shadow-clay-cta:hover {
+  box-shadow: 0 8px 18px rgb(79 91 213 / 23%);
+  transform: translateY(-1px);
+}
+
+.aali-surface {
+  border: 1px solid var(--aali-border);
+  border-radius: 18px;
+  background: var(--aali-surface);
+  box-shadow: var(--aali-shadow-card);
+}
+
+.aali-page-intro {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--aali-border);
+}
+
+.aali-page-intro h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.aali-page-intro p {
+  margin: 8px 0 0;
+  max-width: 60ch;
+  color: var(--aali-muted);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+.aali-sidebar {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+  color: #e8ecf7;
+  background: #17243a;
+  border-color: rgb(255 255 255 / 8%);
+}
+
+.aali-sidebar .text-slate-900,
+.aali-sidebar .text-slate-800 {
+  color: #f4f6fb;
+}
+
+.aali-sidebar .text-slate-700,
+.aali-sidebar .text-slate-600,
+.aali-sidebar .text-slate-500,
+.aali-sidebar .text-slate-400 {
+  color: #aab5c7;
+}
+
+.aali-sidebar .text-indigo-900 {
+  color: #e3e7ff;
+}
+
+.aali-sidebar .bg-indigo-900 {
+  background-color: #4f5bd5;
+}
+
+.aali-sidebar .border-slate-100,
+.aali-sidebar .border-slate-200,
+.aali-sidebar .border-e {
+  border-color: rgb(255 255 255 / 9%);
+}
+
+.aali-sidebar .bg-slate-50,
+.aali-sidebar .bg-slate-50\/60,
+.aali-sidebar .bg-slate-50\/70 {
+  background-color: rgb(0 0 0 / 12%);
+}
+
+.aali-sidebar-muted {
+  color: #aab5c7;
+}
+
+.aali-nav-item {
+  min-height: 44px;
+  border-radius: 12px;
+}
+
+.aali-nav-item[aria-current="page"] {
+  color: #fff;
+  background: rgb(129 140 248 / 18%);
+  box-shadow: inset 3px 0 0 #9da7ff;
+}
+
+.aali-popover {
+  border: 1px solid var(--aali-border);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--aali-shadow-popover);
+}
+
+.aali-app :where(.shadow-xl, .shadow-lg) {
+  box-shadow: var(--aali-shadow-popover);
+}
+
+.aali-app :where(.shadow-md, .shadow-sm, .shadow-2xs) {
+  box-shadow: var(--aali-shadow-card);
+}
+
+.aali-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 20px;
+}
+
+@media (max-width: 767px) {
+  .aali-sidebar {
+    position: relative;
+    top: auto;
+    align-self: stretch;
+    min-height: auto;
+    max-height: none;
+  }
+
+  .aali-page-intro {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .aali-card-grid {
+    gap: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "منصة أعالي للخدمات التعليمية — Aali Education Platform",
+  "description": "منصة وطنية رائدة تجمع الطلاب مع نخبة مقدمي الخدمات التعليمية من مدارس خاصة ومعاهد وجامعات ومدرسين ومراكز تدريب ومكتبات.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

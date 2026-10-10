@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile stored for authenticated students, providers, and admins",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique user ID matching auth UID" },
+        "email": { "type": "string", "description": "User email address" },
+        "displayName": { "type": "string", "description": "Display name of the user or organization" },
+        "role": { "type": "string", "enum": ["student", "provider", "admin"], "description": "User role in the system" },
+        "photoURL": { "type": "string", "description": "Avatar or logo URL" },
+        "phoneNumber": { "type": "string", "description": "Contact phone number" },
+        "providerCategory": { "type": "string", "description": "Category for educational providers" },
+        "institutionName": { "type": "string", "description": "Educational institution name" },
+        "createdAt": { "type": "string", "description": "Account creation timestamp" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "EducationalService": {
+      "title": "Educational Service",
+      "description": "Educational courses, schools, kindergartens, degrees, and programs",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the educational service" },
+        "providerId": { "type": "string", "description": "UID of the provider owner" },
+        "providerName": { "type": "string", "description": "Name of the institution or educator" },
+        "category": { "type": "string", "description": "Educational category" },
+        "title": { "type": "string", "description": "Service or course title" },
+        "description": { "type": "string", "description": "Detailed description" },
+        "duration": { "type": "string", "description": "Duration of the course or academic year" },
+        "location": { "type": "string", "description": "City or campus location" },
+        "fees": { "type": "string", "description": "Formatted tuition fees" },
+        "mode": { "type": "string", "enum": ["حضوري", "عن بعد", "مدمج"], "description": "Delivery mode" },
+        "level": { "type": "string", "description": "Educational level or grade" },
+        "seats": { "type": "number", "description": "Maximum available seats" },
+        "enrolledCount": { "type": "number", "description": "Currently enrolled students count" },
+        "status": { "type": "string", "enum": ["نشط", "مسودة", "ممتلئ", "مغلق"], "description": "Publishing status" },
+        "rating": { "type": "number", "description": "Average student rating" },
+        "reviewsCount": { "type": "number", "description": "Total review count" },
+        "isVerified": { "type": "boolean", "description": "Accreditation verification status" },
+        "featured": { "type": "boolean", "description": "Featured flag" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "providerId", "title", "category"]
+    },
+    "Inquiry": {
+      "title": "Inquiry / Application",
+      "description": "Student admission request or inquiry to a provider",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique inquiry identifier" },
+        "serviceId": { "type": "string", "description": "Target educational service ID" },
+        "serviceTitle": { "type": "string", "description": "Target educational service title" },
+        "providerId": { "type": "string", "description": "Provider owner UID" },
+        "studentId": { "type": "string", "description": "Student UID who submitted" },
+        "studentName": { "type": "string", "description": "Name of the student or applicant" },
+        "studentEmail": { "type": "string", "description": "Email of the student" },
+        "studentPhone": { "type": "string", "description": "Phone number" },
+        "message": { "type": "string", "description": "Inquiry or application text" },
+        "status": { "type": "string", "enum": ["pending", "responded", "confirmed", "cancelled"], "description": "Current status" },
+        "responseMessage": { "type": "string", "description": "Provider reply text" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "serviceId", "providerId", "studentId", "studentName", "message"]
+    },
+    "Enrollment": {
+      "title": "Enrollment",
+      "description": "Record of a student enrolled in an educational program",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique enrollment identifier" },
+        "studentId": { "type": "string", "description": "UID of the enrolled student" },
+        "studentName": { "type": "string", "description": "Name of the student" },
+        "studentEmail": { "type": "string", "description": "Email of the student" },
+        "serviceId": { "type": "string", "description": "ID of the educational service" },
+        "providerId": { "type": "string", "description": "UID of the provider" },
+        "programTitle": { "type": "string", "description": "Title of the program" },
+        "progress": { "type": "number", "description": "Completion percentage (0-100)" },
+        "status": { "type": "string", "enum": ["active", "completed", "cancelled"], "description": "Enrollment status" },
+        "paymentStatus": { "type": "string", "enum": ["paid", "pending", "partially_paid"], "description": "Payment status" },
+        "enrolledAt": { "type": "string", "description": "Enrollment timestamp" }
+      },
+      "required": ["id", "studentId", "serviceId", "providerId"]
+    },
+    "Review": {
+      "title": "Course / Provider Review",
+      "description": "Student rating and review for an educational service",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique review identifier" },
+        "serviceId": { "type": "string", "description": "Target educational service ID" },
+        "providerId": { "type": "string", "description": "Provider UID" },
+        "studentId": { "type": "string", "description": "Student UID who wrote review" },
+        "studentName": { "type": "string", "description": "Student display name" },
+        "rating": { "type": "number", "description": "Rating score between 1 and 5" },
+        "comment": { "type": "string", "description": "Review comment text" },
+        "providerReply": { "type": "string", "description": "Official reply from provider" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "serviceId", "providerId", "studentId", "rating", "comment"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles indexed by UID"
+    },
+    "/services/{serviceId}": {
+      "schema": { "$ref": "#/entities/EducationalService" },
+      "description": "Educational services, programs, schools, and courses"
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": { "$ref": "#/entities/Inquiry" },
+      "description": "Student admission inquiries and requests sent to providers"
+    },
+    "/enrollments/{enrollmentId}": {
+      "schema": { "$ref": "#/entities/Enrollment" },
+      "description": "Student enrollments in courses and services"
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Ratings and reviews left by students for educational programs"
+    }
+  }
+}
