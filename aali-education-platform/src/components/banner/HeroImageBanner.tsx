@@ -314,7 +314,10 @@ export const HeroImageBanner: React.FC<HeroImageBannerProps> = ({ onNavigate, se
             </div>
 
             {/* Banner Title */}
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-tight text-balance mb-3.5 drop-shadow-sm">
+            <h2
+              className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight leading-tight text-balance mb-3.5 drop-shadow-sm"
+              style={{ color: '#fff' }}
+            >
               {activeBanner.title}
             </h2>
 

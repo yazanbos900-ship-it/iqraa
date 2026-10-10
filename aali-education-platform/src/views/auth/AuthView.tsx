@@ -205,7 +205,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
               </span>
             </button>
             <p className="mt-16 text-sm font-semibold text-indigo-200">كل ما تحتاجه لرحلتك التعليمية</p>
-            <h2 className="mt-3 text-3xl lg:text-4xl leading-tight font-bold text-white">اكتشف، قارن، وتابع خياراتك التعليمية بسهولة.</h2>
+            <h2
+              className="mt-3 text-3xl lg:text-4xl leading-tight font-bold text-white"
+              style={{ color: '#fff' }}
+            >
+              ابدأ مع أعالي
+            </h2>
             <p className="mt-5 text-base leading-7 text-slate-300">حساب واحد يوصلك إلى البرامج التعليمية ومزودي الخدمة، ويساعدك على متابعة طلباتك من مكان واحد.</p>
           </div>
           <div className="relative grid gap-3 text-sm text-slate-200">

@@ -18,6 +18,7 @@ import { StudentPortal } from './views/student/StudentPortal';
 import { ProviderPortal } from './views/provider/ProviderPortal';
 import { AdminPortal } from './views/admin/AdminPortal';
 import { AuthView } from './views/auth/AuthView';
+import { ContrastAuditTool } from './components/ui/ContrastAuditTool';
 
 const PortalAccessRequired: React.FC<{ onNavigate: (view: ActiveView) => void; roleName: string }> = ({ onNavigate, roleName }) => (
   <main className="aali-app flex-1 grid place-items-center p-6 sm:p-10">
@@ -227,6 +228,10 @@ export default function App() {
           </main>
           <Footer onNavigate={handleNavigate} />
         </>
+      )}
+
+      {userProfile?.role === 'admin' && (
+        <ContrastAuditTool activeView={activeView} onNavigate={handleNavigate} />
       )}
     </div>
   );
