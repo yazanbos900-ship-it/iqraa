@@ -37,6 +37,16 @@ export interface EducationalProvider {
   updatedAt?: string;
   commissionRate?: number;
   accountStatus?: 'active' | 'suspended';
+  contactPerson?: string;
+  landline?: string;
+  workingHours?: string;
+  addressDetails?: {
+    country: string;
+    city: string;
+    district: string;
+    street: string;
+    number: string;
+  };
 }
 
 export interface CourseModule {
@@ -72,6 +82,11 @@ export interface EducationalService {
   featured?: boolean;
   pausedByAdmin?: boolean;
   statusBeforePause?: 'active' | 'draft' | 'closed';
+  startDate?: string;
+  minStudents?: number;
+  canStartBelowMin?: boolean;
+  paymentMethods?: ('cash' | 'online')[];
+  freeLessonsCount?: number;
 }
 
 export interface StudentInquiry {
@@ -147,4 +162,3 @@ export type ActiveView =
   | 'auth-login' 
   | 'auth-register'
   | 'auth-recovery';
-

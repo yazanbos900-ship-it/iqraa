@@ -35,6 +35,7 @@ interface ProgramsTabProps {
   onToggleStatus: (serviceId: string) => void;
   onDeleteService: (serviceId: string) => void;
   onQuickUpdateSeats: (serviceId: string, addedSeats: number) => void;
+  canActivate: boolean;
 }
 
 export const ProgramsTab: React.FC<ProgramsTabProps> = ({
@@ -45,6 +46,7 @@ export const ProgramsTab: React.FC<ProgramsTabProps> = ({
   onToggleStatus,
   onDeleteService,
   onQuickUpdateSeats,
+  canActivate,
 }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -192,6 +194,12 @@ export const ProgramsTab: React.FC<ProgramsTabProps> = ({
                       {srv.status === 'active' ? 'مفتوح للتسجيل' : srv.status === 'closed' ? 'مكتمل المقاعد' : 'مسودة'}
                     </Badge>
                   </div>
+                  {srv.pausedByAdmin && (
+                    <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-[11px] text-amber-800">
+                      <Badge variant="warning">موقوفة من الإدارة</Badge>
+                      <p className="mt-1">يرجى التواصل مع الإدارة للاستفسار.</p>
+                    </div>
+                  )}
                   <CardTitle className="text-base font-bold text-slate-900 leading-snug line-clamp-2">
                     {srv.title}
                   </CardTitle>
@@ -251,13 +259,17 @@ export const ProgramsTab: React.FC<ProgramsTabProps> = ({
                       <Edit3 className="w-3.5 h-3.5 me-1 text-slate-500" />
                       تعديل
                     </Button>
-                    <button
-                      onClick={() => onToggleStatus(srv.id)}
-                      className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 text-xs transition-colors cursor-pointer"
-                      title="تبديل حالة النشر"
-                    >
-                      {srv.status === 'active' ? 'إيقاف' : 'تفعيل'}
-                    </button>
+                    <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        checked={srv.status === 'active'}
+                        disabled={srv.pausedByAdmin || (srv.status !== 'active' && !canActivate)}
+                        onChange={() => onToggleStatus(srv.id)}
+                        aria-label={`${srv.status === 'active' ? 'إيقاف' : 'تفعيل'} ${srv.title}`}
+                      />
+                      {srv.status === 'active' ? 'مفعّلة' : 'متوقفة'}
+                    </label>
                     <button
                       onClick={() => onQuickUpdateSeats(srv.id, 5)}
                       className="text-[11px] text-indigo-700 hover:text-indigo-800 hover:underline px-1 cursor-pointer"
@@ -313,9 +325,12 @@ export const ProgramsTab: React.FC<ProgramsTabProps> = ({
                     {srv.mode === 'on-campus' ? 'حضوري' : srv.mode === 'online' ? 'عن بُعد' : 'مدمج'}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={srv.status === 'active' ? 'success' : srv.status === 'closed' ? 'danger' : 'neutral'}>
-                      {srv.status === 'active' ? 'مفتوح' : srv.status === 'closed' ? 'مغلق' : 'مسودة'}
-                    </Badge>
+                    <div className="space-y-1">
+                      <Badge variant={srv.status === 'active' ? 'success' : srv.status === 'closed' ? 'danger' : 'neutral'}>
+                        {srv.status === 'active' ? 'مفتوح' : srv.status === 'closed' ? 'مغلق' : 'مسودة'}
+                      </Badge>
+                      {srv.pausedByAdmin && <p className="text-[10px] text-amber-700">موقوفة من الإدارة — تواصل مع الإدارة</p>}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -327,6 +342,17 @@ export const ProgramsTab: React.FC<ProgramsTabProps> = ({
                       >
                         تعديل
                       </Button>
+                      <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-600">
+                        <input
+                          type="checkbox"
+                          role="switch"
+                          checked={srv.status === 'active'}
+                          disabled={srv.pausedByAdmin || (srv.status !== 'active' && !canActivate)}
+                          onChange={() => onToggleStatus(srv.id)}
+                          aria-label={`${srv.status === 'active' ? 'إيقاف' : 'تفعيل'} ${srv.title}`}
+                        />
+                        {srv.status === 'active' ? 'مفعّلة' : 'متوقفة'}
+                      </label>
                       <button
                         onClick={() => onQuickUpdateSeats(srv.id, 5)}
                         className="text-xs text-indigo-600 hover:underline cursor-pointer"

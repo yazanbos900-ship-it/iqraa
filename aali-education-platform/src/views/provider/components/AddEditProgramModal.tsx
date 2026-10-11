@@ -27,6 +27,7 @@ interface AddEditProgramModalProps {
   providerName: string;
   currentType: ProviderTypeOption;
   initialService?: EducationalService | null;
+  canActivate: boolean;
 }
 
 export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
@@ -36,6 +37,7 @@ export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
   providerName,
   currentType,
   initialService,
+  canActivate,
 }) => {
   const [title, setTitle] = useState('');
   const [level, setLevel] = useState('');
@@ -46,6 +48,13 @@ export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
   const [mode, setMode] = useState<'on-campus' | 'online' | 'hybrid'>('on-campus');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<'active' | 'draft'>('active');
+  const [startDate, setStartDate] = useState('');
+  const [minStudents, setMinStudents] = useState(1);
+  const [canStartBelowMin, setCanStartBelowMin] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<('cash' | 'online')[]>(['cash']);
+  const [freeLessonsCount, setFreeLessonsCount] = useState(1);
+  const [instructorName, setInstructorName] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   // Custom provider-specific dynamic fields state
   const [customField1, setCustomField1] = useState('');
@@ -63,6 +72,12 @@ export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
       setMode(initialService.mode);
       setDescription(initialService.description);
       setStatus(initialService.status === 'draft' ? 'draft' : 'active');
+      setStartDate(initialService.startDate || '');
+      setMinStudents(initialService.minStudents ?? 1);
+      setCanStartBelowMin(initialService.canStartBelowMin ?? false);
+      setPaymentMethods(initialService.paymentMethods?.filter((method) => method === 'cash' || method === 'online') || ['cash']);
+      setFreeLessonsCount(initialService.freeLessonsCount ?? 1);
+      setInstructorName(initialService.instructorName || '');
     } else {
       setTitle('');
       setLevel('');
@@ -75,13 +90,41 @@ export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
       setSeats(1);
       setMode('on-campus');
       setDescription('');
-      setStatus('active');
+      setStatus(canActivate ? 'active' : 'draft');
+      setStartDate('');
+      setMinStudents(1);
+      setCanStartBelowMin(false);
+      setPaymentMethods(['cash']);
+      setFreeLessonsCount(1);
+      setInstructorName('');
     }
-  }, [initialService, currentType, isOpen]);
+    setValidationError('');
+  }, [initialService, currentType, isOpen, canActivate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+    if (!Number.isInteger(minStudents) || minStudents <= 0 || minStudents > seats) {
+      setValidationError('الحد الأدنى للطلاب يجب أن يكون عدداً صحيحاً أكبر من صفر ولا يتجاوز الطاقة الاستيعابية.');
+      return;
+    }
+    if (!Number.isInteger(freeLessonsCount) || freeLessonsCount < 1) {
+      setValidationError('عدد الدروس المجانية يجب أن يكون عدداً صحيحاً لا يقل عن 1.');
+      return;
+    }
+    if (paymentMethods.length === 0) {
+      setValidationError('اختر طريقة دفع واحدة على الأقل.');
+      return;
+    }
+    if (status === 'active' && !canActivate) {
+      setValidationError('أكمل ملف المؤسسة وحساب استلام المبالغ قبل تفعيل الدورة. يمكنك حفظها كمسودة.');
+      return;
+    }
+    if (initialService?.pausedByAdmin && status !== initialService.status) {
+      setValidationError('هذه الدورة موقوفة من الإدارة. يرجى التواصل مع الإدارة.');
+      return;
+    }
+    setValidationError('');
 
     let enrichedDesc = description;
     if (customField1 || customField2) {
@@ -100,6 +143,12 @@ export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
       totalSeats: seats,
       mode,
       status,
+      startDate,
+      minStudents,
+      canStartBelowMin,
+      paymentMethods,
+      freeLessonsCount,
+      instructorName,
       category: currentType.id === 'institutes_lang' ? 'institutes' : ['institutes_tech', 'vocational'].includes(currentType.id) ? 'training_centers' : currentType.id === 'universities' ? 'universities' : currentType.id === 'tutors' ? 'tutors' : currentType.id === 'libraries' ? 'libraries' : 'schools',
       providerName,
     });
@@ -187,6 +236,52 @@ export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
               />
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">تاريخ البدء</label>
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">الحد الأدنى للطلاب</label>
+                <input type="number" min={1} step={1} max={seats} value={minStudents} onChange={(e) => setMinStudents(Number(e.target.value))} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono" />
+                <span className="mt-1 block text-[10px] text-slate-500">الحد الأقصى هو الطاقة الاستيعابية ({seats}).</span>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">عدد الدروس المجانية</label>
+                <input type="number" min={1} step={1} value={freeLessonsCount} onChange={(e) => setFreeLessonsCount(Number(e.target.value))} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono" />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">المدرّس المسؤول</label>
+                <input type="text" value={instructorName} onChange={(e) => setInstructorName(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
+              </div>
+            </div>
+
+            <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+              <input type="checkbox" checked={canStartBelowMin} onChange={(e) => setCanStartBelowMin(e.target.checked)} />
+              تبدأ الدورة حتى إن لم يصل العدد إلى الحد الأدنى
+            </label>
+
+            <fieldset className="space-y-2">
+              <legend className="font-semibold text-slate-800">طرق الدفع المقبولة <span className="text-rose-600">*</span></legend>
+              <div className="flex items-center gap-5">
+                {([
+                  ['cash', 'نقداً'],
+                  ['online', 'إلكترونياً'],
+                ] as const).map(([method, label]) => (
+                  <label key={method} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={paymentMethods.includes(method)}
+                      onChange={(e) => setPaymentMethods((current) => e.target.checked
+                        ? [...current, method]
+                        : current.filter((item) => item !== method))}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
             <div>
               <label className="block font-semibold text-slate-800 mb-1">
@@ -316,7 +411,8 @@ export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
               <button
                 type="button"
                 onClick={() => setStatus('active')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                disabled={!canActivate || Boolean(initialService?.pausedByAdmin)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${canActivate && !initialService?.pausedByAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} ${
                   status === 'active' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
                 }`}
               >
@@ -325,7 +421,8 @@ export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
               <button
                 type="button"
                 onClick={() => setStatus('draft')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer ${
+                disabled={Boolean(initialService?.pausedByAdmin)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${initialService?.pausedByAdmin ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${
                   status === 'draft' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
                 }`}
               >
@@ -333,6 +430,9 @@ export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
               </button>
             </div>
           </div>
+          {!canActivate && <p className="text-amber-700 text-[11px]">أكمل بيانات المؤسسة وحساب استلام المبالغ لتفعيل الدورة؛ حفظ المسودة متاح.</p>}
+          {initialService?.pausedByAdmin && <p className="text-amber-700 text-[11px]">هذه الدورة موقوفة من الإدارة. يرجى التواصل مع الإدارة.</p>}
+          {validationError && <p role="alert" className="text-rose-600">{validationError}</p>}
         </div>
 
         {/* Footer Actions */}

@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ProviderTypeOption, StaffMember } from '../types';
 import { EducationalProvider } from '../../../types';
+import { ProviderPayoutInfo } from '../../../firebase/PlatformDataContext';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
@@ -26,7 +27,16 @@ interface SettingsTabProps {
   provider?: EducationalProvider;
   staffList: StaffMember[];
   onAddStaff: (member: Omit<StaffMember, 'id'>) => Promise<void>;
+  payoutInfo: ProviderPayoutInfo | null;
   onSaveProfile: (details: { name: string; city: string; description: string; phone: string; email: string }) => Promise<void>;
+  onSaveOrganizationDetails: (details: {
+    contactPerson: string;
+    landline: string;
+    workingHours: string;
+    addressDetails: NonNullable<EducationalProvider['addressDetails']>;
+  }) => Promise<void>;
+  onSavePayoutInfo: (details: ProviderPayoutInfo) => Promise<void>;
+  onPayoutInfoChange: (details: ProviderPayoutInfo) => void;
   onShowToast: (msg: string) => void;
 }
 
@@ -34,11 +44,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   currentType,
   provider,
   staffList,
+  payoutInfo,
   onAddStaff,
   onSaveProfile,
+  onSaveOrganizationDetails,
+  onSavePayoutInfo,
+  onPayoutInfoChange,
   onShowToast,
 }) => {
-  const [activeSection, setActiveSection] = useState<'profile' | 'team' | 'notifications' | 'payment'>('profile');
+  const [activeSection, setActiveSection] = useState<'profile' | 'appearance' | 'team' | 'notifications' | 'payment'>('profile');
   const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
 
   // Profile form
@@ -48,6 +62,23 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [phone, setPhone] = useState(provider?.contactPhone || '');
   const [email, setEmail] = useState(provider?.contactEmail || '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [contactPerson, setContactPerson] = useState(provider?.contactPerson || '');
+  const [landline, setLandline] = useState(provider?.landline || '');
+  const [workingHours, setWorkingHours] = useState(provider?.workingHours || '');
+  const [country, setCountry] = useState(provider?.addressDetails?.country || '');
+  const [addressCity, setAddressCity] = useState(provider?.addressDetails?.city || '');
+  const [district, setDistrict] = useState(provider?.addressDetails?.district || '');
+  const [street, setStreet] = useState(provider?.addressDetails?.street || '');
+  const [addressNumber, setAddressNumber] = useState(provider?.addressDetails?.number || '');
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
+  const [payoutType, setPayoutType] = useState<ProviderPayoutInfo['accountType']>(payoutInfo?.accountType || 'iban');
+  const [payoutNumber, setPayoutNumber] = useState(payoutInfo?.accountNumber || '');
+  const [accountHolderName, setAccountHolderName] = useState(payoutInfo?.accountHolderName || '');
+  const [payoutErrors, setPayoutErrors] = useState<Record<string, string>>({});
+  const [isSavingPayout, setIsSavingPayout] = useState(false);
+  const [bannerPreview, setBannerPreview] = useState('');
+  const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
+  const mediaPreviewRef = useRef({ banner: '', gallery: [] as string[] });
 
   // Staff form
   const [staffName, setStaffName] = useState('');
@@ -62,19 +93,101 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     setDesc(provider?.description || '');
     setPhone(provider?.contactPhone || '');
     setEmail(provider?.contactEmail || '');
+    setContactPerson(provider?.contactPerson || '');
+    setLandline(provider?.landline || '');
+    setWorkingHours(provider?.workingHours || '');
+    setCountry(provider?.addressDetails?.country || '');
+    setAddressCity(provider?.addressDetails?.city || '');
+    setDistrict(provider?.addressDetails?.district || '');
+    setStreet(provider?.addressDetails?.street || '');
+    setAddressNumber(provider?.addressDetails?.number || '');
   }, [provider, currentType]);
+
+  useEffect(() => {
+    setPayoutType(payoutInfo?.accountType || 'iban');
+    setPayoutNumber(payoutInfo?.accountNumber || '');
+    setAccountHolderName(payoutInfo?.accountHolderName || '');
+  }, [payoutInfo]);
+
+  useEffect(() => {
+    mediaPreviewRef.current = { banner: bannerPreview, gallery: galleryPreviews };
+  }, [bannerPreview, galleryPreviews]);
+
+  useEffect(() => () => {
+    if (mediaPreviewRef.current.banner) URL.revokeObjectURL(mediaPreviewRef.current.banner);
+    mediaPreviewRef.current.gallery.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!instName.trim()) errors.instName = 'اسم الجهة مطلوب.';
+    if (!city.trim()) errors.city = 'المدينة مطلوبة.';
+    if (!contactPerson.trim()) errors.contactPerson = 'الشخص المسؤول مطلوب.';
+    if (!landline.trim()) errors.landline = 'الهاتف الأرضي مطلوب.';
+    if (!phone.trim()) errors.phone = 'رقم الجوال مطلوب.';
+    if (!workingHours.trim()) errors.workingHours = 'ساعات الدوام مطلوبة.';
+    if (!country.trim()) errors.country = 'الدولة مطلوبة.';
+    if (!addressCity.trim()) errors.addressCity = 'مدينة العنوان مطلوبة.';
+    if (!district.trim()) errors.district = 'الحي مطلوب.';
+    if (!street.trim()) errors.street = 'الشارع مطلوب.';
+    if (!addressNumber.trim()) errors.addressNumber = 'رقم المبنى مطلوب.';
+    setProfileErrors(errors);
+    if (Object.keys(errors).length) return;
     setIsSavingProfile(true);
     try {
       await onSaveProfile({ name: instName, city, description: desc, phone, email });
+      await onSaveOrganizationDetails({
+        contactPerson,
+        landline,
+        workingHours,
+        addressDetails: { country, city: addressCity, district, street, number: addressNumber },
+      });
       onShowToast('تم حفظ بيانات المؤسسة في Firebase.');
     } catch (error) {
       onShowToast(error instanceof Error ? error.message : 'تعذر حفظ بيانات المؤسسة.');
     } finally {
       setIsSavingProfile(false);
     }
+  };
+
+  const handleSavePayoutInfo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const errors: Record<string, string> = {};
+    if (!payoutNumber.trim()) errors.payoutNumber = 'رقم الحساب أو الرمز مطلوب.';
+    if (!accountHolderName.trim()) errors.accountHolderName = 'اسم صاحب الحساب مطلوب.';
+    setPayoutErrors(errors);
+    if (Object.keys(errors).length) return;
+    setIsSavingPayout(true);
+    const details: ProviderPayoutInfo = {
+      accountType: payoutType,
+      accountNumber: payoutNumber.trim(),
+      accountHolderName: accountHolderName.trim(),
+    };
+    try {
+      await onSavePayoutInfo(details);
+      onPayoutInfoChange(details);
+      onShowToast('تم حفظ بيانات الاستلام في المسار الخاص بالمؤسسة.');
+    } catch (error) {
+      onShowToast(error instanceof Error ? error.message : 'تعذر حفظ بيانات الاستلام.');
+    } finally {
+      setIsSavingPayout(false);
+    }
+  };
+
+  const setBannerFile = (file?: File) => {
+    setBannerPreview((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return file ? URL.createObjectURL(file) : '';
+    });
+  };
+
+  const addGalleryFiles = (files: FileList | null) => {
+    if (!files) return;
+    setGalleryPreviews((current) => [
+      ...current,
+      ...Array.from(files).map((file) => URL.createObjectURL(file)),
+    ]);
   };
 
   const handleCreateStaff = async (e: React.FormEvent) => {
@@ -129,6 +242,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             بيانات المنشأة
           </button>
           <button
+            onClick={() => setActiveSection('appearance')}
+            className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
+              activeSection === 'appearance' ? 'bg-white text-indigo-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            تخصيص الصفحة
+          </button>
+          <button
             onClick={() => setActiveSection('team')}
             className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
               activeSection === 'team' ? 'bg-white text-indigo-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
@@ -171,22 +292,39 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">اسم المؤسسة بالعربية</label>
+              <label className="block font-semibold text-slate-800 mb-1">اسم الجهة <span className="text-rose-600">*</span></label>
               <input
                 type="text"
+                required
                 value={instName}
                 onChange={(e) => setInstName(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
+              {profileErrors.instName && <p className="mt-1 text-rose-600">{profileErrors.instName}</p>}
             </div>
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">المدينة والموقع</label>
+              <label className="block font-semibold text-slate-800 mb-1">المدينة <span className="text-rose-600">*</span></label>
               <input
                 type="text"
+                required
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
+              {profileErrors.city && <p className="mt-1 text-rose-600">{profileErrors.city}</p>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">الشخص المسؤول <span className="text-rose-600">*</span></label>
+              <input type="text" required value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+              {profileErrors.contactPerson && <p className="mt-1 text-rose-600">{profileErrors.contactPerson}</p>}
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">الهاتف الأرضي <span className="text-rose-600">*</span></label>
+              <input type="tel" required value={landline} onChange={(e) => setLandline(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+              {profileErrors.landline && <p className="mt-1 text-rose-600">{profileErrors.landline}</p>}
             </div>
           </div>
 
@@ -202,13 +340,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">رقم الهاتف الرسمي</label>
+              <label className="block font-semibold text-slate-800 mb-1">رقم الجوال <span className="text-rose-600">*</span></label>
               <input
-                type="text"
+                type="tel"
+                required
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono"
               />
+              {profileErrors.phone && <p className="mt-1 text-rose-600">{profileErrors.phone}</p>}
             </div>
             <div>
               <label className="block font-semibold text-slate-800 mb-1">البريد الإلكتروني للقبول</label>
@@ -220,7 +360,60 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               />
             </div>
           </div>
+
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">ساعات الدوام <span className="text-rose-600">*</span></label>
+            <input type="text" required placeholder="مثال: 8 ص - 4 م" value={workingHours} onChange={(e) => setWorkingHours(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+            {profileErrors.workingHours && <p className="mt-1 text-rose-600">{profileErrors.workingHours}</p>}
+          </div>
+
+          <div className="space-y-3">
+            <h4 className="font-bold text-slate-900">العنوان التفصيلي <span className="text-rose-600">*</span></h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                { label: 'الدولة', value: country, set: setCountry, error: 'country', message: 'الدولة مطلوبة.' },
+                { label: 'المدينة', value: addressCity, set: setAddressCity, error: 'addressCity', message: 'مدينة العنوان مطلوبة.' },
+                { label: 'الحي', value: district, set: setDistrict, error: 'district', message: 'الحي مطلوب.' },
+                { label: 'الشارع', value: street, set: setStreet, error: 'street', message: 'الشارع مطلوب.' },
+                { label: 'الرقم', value: addressNumber, set: setAddressNumber, error: 'addressNumber', message: 'رقم المبنى مطلوب.' },
+              ].map((field) => (
+                <div key={field.error}>
+                  <label className="block font-semibold text-slate-800 mb-1">{field.label} <span className="text-rose-600">*</span></label>
+                  <input type="text" required value={field.value} onChange={(e) => field.set(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+                  {profileErrors[field.error] && <p className="mt-1 text-rose-600">{field.message}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-800 mb-1">نوع الخدمة التعليمية</label>
+            <p className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">{currentType.nameAr} — الفئة الحالية</p>
+          </div>
         </form>
+      )}
+
+      {activeSection === 'appearance' && (
+        <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-5 text-xs text-slate-700">
+          <div>
+            <h3 className="text-base font-bold text-slate-900">تخصيص صفحة الجهة</h3>
+            <p className="mt-1 text-slate-500">معاينة محلية مؤقتة؛ لن تُحفظ الصور ولن تظهر للطلاب قبل ربط التخزين السحابي لاحقاً.</p>
+          </div>
+          <div>
+            <label className="block font-semibold text-slate-800 mb-2">صورة البنر</label>
+            <input type="file" accept="image/*" onChange={(e) => setBannerFile(e.target.files?.[0])} className="block w-full text-xs" />
+            {bannerPreview && <img src={bannerPreview} alt="معاينة البنر" className="mt-3 h-40 w-full rounded-xl object-cover" />}
+          </div>
+          <div>
+            <label className="block font-semibold text-slate-800 mb-2">صور صفحة الجهة</label>
+            <input type="file" accept="image/*" multiple onChange={(e) => addGalleryFiles(e.target.files)} className="block w-full text-xs" />
+            {galleryPreviews.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {galleryPreviews.map((src, index) => <img key={`${src}-${index}`} src={src} alt={`معاينة صورة ${index + 1}`} className="h-28 w-full rounded-lg object-cover" />)}
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       {/* Section 2: Team */}
@@ -290,10 +483,43 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
       {/* Section 4: Payment */}
       {activeSection === 'payment' && (
+        <div className="space-y-5">
+        <form onSubmit={handleSavePayoutInfo} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-4 text-xs text-slate-700">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-emerald-700" />
+              حساب استلام المبالغ
+            </h3>
+            <Button type="submit" variant="primary" size="sm" disabled={isSavingPayout}>
+              {isSavingPayout ? 'جارٍ الحفظ…' : 'حفظ بيانات الاستلام'}
+            </Button>
+          </div>
+          <p className="text-slate-500">هذه البيانات خاصة ولا تُحفظ في ملف المؤسسة العام.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">نوع الحساب <span className="text-rose-600">*</span></label>
+              <select value={payoutType} onChange={(e) => setPayoutType(e.target.value as ProviderPayoutInfo['accountType'])} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                <option value="iban">IBAN</option>
+                <option value="sham-cash">شام كاش</option>
+                <option value="pay-meera">باي ميرا</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">رقم الحساب أو الرمز <span className="text-rose-600">*</span></label>
+              <input required value={payoutNumber} onChange={(e) => setPayoutNumber(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono" />
+              {payoutErrors.payoutNumber && <p className="mt-1 text-rose-600">{payoutErrors.payoutNumber}</p>}
+            </div>
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">اسم صاحب الحساب <span className="text-rose-600">*</span></label>
+              <input required value={accountHolderName} onChange={(e) => setAccountHolderName(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs" />
+              {payoutErrors.accountHolderName && <p className="mt-1 text-rose-600">{payoutErrors.accountHolderName}</p>}
+            </div>
+          </div>
+        </form>
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-4 text-xs text-slate-700">
           <h3 className="text-base font-bold text-slate-900 pb-2 border-b border-slate-100 flex items-center gap-2">
             <CreditCard className="w-4 h-4 text-emerald-700" />
-            حالة الدفع والتحصيل
+            بوابات الدفع والتحصيل
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -317,6 +543,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               </p>
             </div>
           </div>
+        </div>
         </div>
       )}
 

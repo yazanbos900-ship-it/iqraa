@@ -5,6 +5,7 @@ import {
   deleteField,
   deleteDoc,
   doc,
+  getDoc,
   onSnapshot,
   query,
   setDoc,
@@ -35,6 +36,12 @@ export interface InquiryRecord extends StudentInquiry {
   internalNotes?: string;
 }
 
+export interface ProviderPayoutInfo {
+  accountType: 'iban' | 'sham-cash' | 'pay-meera';
+  accountNumber: string;
+  accountHolderName: string;
+}
+
 interface PlatformDataContextValue {
   services: EducationalService[];
   providers: EducationalProvider[];
@@ -51,6 +58,14 @@ interface PlatformDataContextValue {
   updateProvider: (id: string, changes: Partial<EducationalProvider>) => Promise<void>;
   submitProviderVerification: (details: { licenseNumber: string; city: string }) => Promise<void>;
   saveProviderProfile: (details: { name: string; city: string; description: string; phone: string; email: string }) => Promise<void>;
+  saveProviderOrganizationDetails: (details: {
+    contactPerson: string;
+    landline: string;
+    workingHours: string;
+    addressDetails: NonNullable<EducationalProvider['addressDetails']>;
+  }) => Promise<void>;
+  getPayoutInfo: () => Promise<ProviderPayoutInfo | null>;
+  savePayoutInfo: (details: ProviderPayoutInfo) => Promise<void>;
   addTeamMember: (member: Omit<StaffMember, 'id'>) => Promise<void>;
   replyToReview: (reviewId: string, text: string, responder: string) => Promise<void>;
   removeService: (id: string) => Promise<void>;
@@ -114,6 +129,13 @@ const asService = (id: string, data: Record<string, unknown>): EducationalServic
     ...(typeof data.featured === 'boolean' ? { featured: data.featured } : {}),
     ...(typeof data.pausedByAdmin === 'boolean' ? { pausedByAdmin: data.pausedByAdmin } : {}),
     ...(data.statusBeforePause === 'active' || data.statusBeforePause === 'draft' || data.statusBeforePause === 'closed' ? { statusBeforePause: data.statusBeforePause } : {}),
+    ...(typeof data.startDate === 'string' ? { startDate: data.startDate } : {}),
+    ...(typeof data.minStudents === 'number' && Number.isFinite(data.minStudents) ? { minStudents: data.minStudents } : {}),
+    ...(typeof data.canStartBelowMin === 'boolean' ? { canStartBelowMin: data.canStartBelowMin } : {}),
+    ...(Array.isArray(data.paymentMethods) ? {
+      paymentMethods: data.paymentMethods.filter((method): method is 'cash' | 'online' => method === 'cash' || method === 'online'),
+    } : {}),
+    ...(typeof data.freeLessonsCount === 'number' && Number.isFinite(data.freeLessonsCount) ? { freeLessonsCount: data.freeLessonsCount } : {}),
   };
 };
 
@@ -151,6 +173,18 @@ const asProvider = (id: string, data: Record<string, unknown>): EducationalProvi
     ...(typeof data.updatedAt === 'string' ? { updatedAt: data.updatedAt } : {}),
     ...(typeof data.commissionRate === 'number' && Number.isFinite(data.commissionRate) ? { commissionRate: data.commissionRate } : {}),
     ...(data.accountStatus === 'active' || data.accountStatus === 'suspended' ? { accountStatus: data.accountStatus } : {}),
+    ...(typeof data.contactPerson === 'string' ? { contactPerson: data.contactPerson } : {}),
+    ...(typeof data.landline === 'string' ? { landline: data.landline } : {}),
+    ...(typeof data.workingHours === 'string' ? { workingHours: data.workingHours } : {}),
+    ...(typeof data.addressDetails === 'object' && data.addressDetails !== null && !Array.isArray(data.addressDetails) ? {
+      addressDetails: {
+        country: valueAsString((data.addressDetails as Record<string, unknown>).country),
+        city: valueAsString((data.addressDetails as Record<string, unknown>).city),
+        district: valueAsString((data.addressDetails as Record<string, unknown>).district),
+        street: valueAsString((data.addressDetails as Record<string, unknown>).street),
+        number: valueAsString((data.addressDetails as Record<string, unknown>).number),
+      },
+    } : {}),
   };
 };
 
@@ -322,6 +356,55 @@ export const PlatformDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     await batch.commit();
   }, [user, userProfile]);
 
+  const saveProviderOrganizationDetails = useCallback(async (details: {
+    contactPerson: string;
+    landline: string;
+    workingHours: string;
+    addressDetails: NonNullable<EducationalProvider['addressDetails']>;
+  }) => {
+    if (!user || userProfile?.role !== 'provider') throw new Error('تحديث بيانات المؤسسة متاح لحساب مزود خدمة.');
+    await updateDoc(doc(db, 'providers', user.uid), {
+      contactPerson: details.contactPerson.trim(),
+      landline: details.landline.trim(),
+      workingHours: details.workingHours.trim(),
+      addressDetails: {
+        country: details.addressDetails.country.trim(),
+        city: details.addressDetails.city.trim(),
+        district: details.addressDetails.district.trim(),
+        street: details.addressDetails.street.trim(),
+        number: details.addressDetails.number.trim(),
+      },
+      updatedAt: new Date().toISOString(),
+    });
+  }, [user, userProfile]);
+
+  const getPayoutInfo = useCallback(async () => {
+    if (!user || userProfile?.role !== 'provider') throw new Error('عرض بيانات الاستلام متاح لحساب مزود خدمة.');
+    const snapshot = await getDoc(doc(db, 'providers', user.uid, 'private', 'payout'));
+    if (!snapshot.exists()) return null;
+    const data = snapshot.data();
+    if (
+      (data.accountType !== 'iban' && data.accountType !== 'sham-cash' && data.accountType !== 'pay-meera')
+      || typeof data.accountNumber !== 'string'
+      || typeof data.accountHolderName !== 'string'
+    ) throw new Error('بيانات حساب الاستلام المخزنة غير مكتملة أو غير صالحة.');
+    return {
+      accountType: data.accountType,
+      accountNumber: data.accountNumber,
+      accountHolderName: data.accountHolderName,
+    };
+  }, [user, userProfile]);
+
+  const savePayoutInfo = useCallback(async (details: ProviderPayoutInfo) => {
+    if (!user || userProfile?.role !== 'provider') throw new Error('حفظ بيانات الاستلام متاح لحساب مزود خدمة.');
+    await setDoc(doc(db, 'providers', user.uid, 'private', 'payout'), {
+      accountType: details.accountType,
+      accountNumber: details.accountNumber.trim(),
+      accountHolderName: details.accountHolderName.trim(),
+      updatedAt: new Date().toISOString(),
+    });
+  }, [user, userProfile]);
+
   const addTeamMember = useCallback(async (member: Omit<StaffMember, 'id'>) => {
     if (!user || userProfile?.role !== 'provider') throw new Error('إدارة جهات الاتصال متاحة لحساب مزود خدمة.');
     await addDoc(collection(db, 'users', user.uid, 'teamMembers'), {
@@ -408,8 +491,8 @@ export const PlatformDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const value = useMemo(() => ({
     services, providers, categories, enrollments, inquiries, teamMembers, reviews, savedServiceIds,
     catalogLoading, catalogError, dataError,
-    saveService, updateProvider, submitProviderVerification, saveProviderProfile, addTeamMember, replyToReview, removeService, updateService, clearAdminServicePause, createInquiry, updateInquiry, createEnrollment, toggleSavedService,
-  }), [services, providers, categories, enrollments, inquiries, teamMembers, reviews, savedServiceIds, catalogLoading, catalogError, dataError, saveService, updateProvider, submitProviderVerification, saveProviderProfile, addTeamMember, replyToReview, removeService, updateService, clearAdminServicePause, createInquiry, updateInquiry, createEnrollment, toggleSavedService]);
+    saveService, updateProvider, submitProviderVerification, saveProviderProfile, saveProviderOrganizationDetails, getPayoutInfo, savePayoutInfo, addTeamMember, replyToReview, removeService, updateService, clearAdminServicePause, createInquiry, updateInquiry, createEnrollment, toggleSavedService,
+  }), [services, providers, categories, enrollments, inquiries, teamMembers, reviews, savedServiceIds, catalogLoading, catalogError, dataError, saveService, updateProvider, submitProviderVerification, saveProviderProfile, saveProviderOrganizationDetails, getPayoutInfo, savePayoutInfo, addTeamMember, replyToReview, removeService, updateService, clearAdminServicePause, createInquiry, updateInquiry, createEnrollment, toggleSavedService]);
 
   return <PlatformDataContext.Provider value={value}>{children}</PlatformDataContext.Provider>;
 };

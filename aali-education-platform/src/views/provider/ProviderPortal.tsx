@@ -59,6 +59,10 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
     updateInquiry,
     submitProviderVerification,
     saveProviderProfile,
+    saveProviderOrganizationDetails,
+    getPayoutInfo,
+    savePayoutInfo,
+    catalogLoading,
     teamMembers,
     addTeamMember,
     replyToReview,
@@ -95,6 +99,8 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
 
   // Toast State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [payoutInfo, setPayoutInfo] = useState<Awaited<ReturnType<typeof getPayoutInfo>>>(null);
+  const [payoutInfoLoaded, setPayoutInfoLoaded] = useState(false);
 
   // Mobile sidebar state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -129,6 +135,43 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
   const currentServices = allServices.filter((service) => service.providerId === user?.uid);
   const currentProvider = providers.find((provider) => provider.id === user?.uid);
   const displayProviderName = currentProvider?.name || userProfile?.institutionName || userProfile?.displayName || 'مزود الخدمة';
+  const missingProfileFields = [
+    ...(!currentProvider?.name?.trim() ? ['اسم الجهة'] : []),
+    ...(!currentProvider?.city?.trim() ? ['المدينة'] : []),
+    ...(!currentProvider?.contactPerson?.trim() ? ['الشخص المسؤول'] : []),
+    ...(!currentProvider?.landline?.trim() ? ['الهاتف الأرضي'] : []),
+    ...(!currentProvider?.contactPhone?.trim() ? ['الجوال'] : []),
+    ...(!currentProvider?.workingHours?.trim() ? ['ساعات الدوام'] : []),
+    ...(!currentProvider?.addressDetails?.country?.trim() ? ['الدولة'] : []),
+    ...(!currentProvider?.addressDetails?.city?.trim() ? ['مدينة العنوان'] : []),
+    ...(!currentProvider?.addressDetails?.district?.trim() ? ['الحي'] : []),
+    ...(!currentProvider?.addressDetails?.street?.trim() ? ['الشارع'] : []),
+    ...(!currentProvider?.addressDetails?.number?.trim() ? ['رقم العنوان'] : []),
+    ...(!currentProvider?.category ? ['نوع الخدمة التعليمية'] : []),
+    ...(!payoutInfo?.accountType || !payoutInfo.accountNumber.trim() || !payoutInfo.accountHolderName.trim() ? ['حساب استلام المبالغ'] : []),
+  ];
+  const profileComplete = missingProfileFields.length === 0;
+
+  useEffect(() => {
+    if (!user || userProfile?.role !== 'provider') {
+      setPayoutInfo(null);
+      setPayoutInfoLoaded(false);
+      return;
+    }
+    let active = true;
+    setPayoutInfoLoaded(false);
+    void getPayoutInfo()
+      .then((info) => {
+        if (active) setPayoutInfo(info);
+      })
+      .catch((error) => {
+        if (active) showToast(error instanceof Error ? error.message : 'تعذر تحميل بيانات الاستلام.');
+      })
+      .finally(() => {
+        if (active) setPayoutInfoLoaded(true);
+      });
+    return () => { active = false; };
+  }, [getPayoutInfo, user, userProfile?.role]);
 
   // Add / Edit service handler
   const handleSaveService = async (serviceData: Partial<EducationalService>) => {
@@ -142,6 +185,10 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
         rating: editingService?.rating || 0,
         reviewsCount: editingService?.reviewsCount || 0,
       };
+      if (payload.status === 'active' && !profileComplete) {
+        showToast(`لا يمكن تفعيل الدورة قبل استكمال: ${missingProfileFields.join('، ')}. يمكنك حفظها كمسودة.`);
+        return;
+      }
       const savedId = await saveService(payload, editingService?.id);
       showToast(!currentProvider?.accredited && serviceData.status === 'active'
         ? `حُفظ البرنامج ${serviceData.title || savedId} كمسودة إلى حين اعتماد المؤسسة.`
@@ -156,6 +203,14 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
   const handleToggleStatus = async (serviceId: string) => {
     const service = currentServices.find((item) => item.id === serviceId);
     if (!service) return;
+    if (service.status !== 'active' && !profileComplete) {
+      showToast(`لا يمكن تفعيل الدورة قبل استكمال: ${missingProfileFields.join('، ')}.`);
+      return;
+    }
+    if (service.pausedByAdmin) {
+      showToast('هذه الدورة موقوفة من الإدارة. يرجى التواصل مع الإدارة.');
+      return;
+    }
     try {
       await updateService(serviceId, { status: service.status === 'active' ? 'draft' : 'active' });
       showToast('تم تحديث حالة نشر البرنامج.');
@@ -424,6 +479,12 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
 
         {/* Tab Content Rendering */}
         <main className="w-full max-w-[1600px] mx-auto p-5 sm:p-7 lg:p-10 flex-1">
+          {!catalogLoading && payoutInfoLoaded && !profileComplete && (
+            <div role="alert" className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+              <strong>ملف المؤسسة غير مكتمل.</strong>
+              <span> أكمل البيانات التالية من الإعدادات لتتمكن من تفعيل الدورات: {missingProfileFields.join('، ')}.</span>
+            </div>
+          )}
           {activeTab === 'overview' && (
             <OverviewTab
               currentType={currentType}
@@ -457,6 +518,7 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
               onToggleStatus={handleToggleStatus}
               onDeleteService={handleDeleteService}
               onQuickUpdateSeats={handleQuickUpdateSeats}
+              canActivate={profileComplete}
             />
           )}
 
@@ -497,6 +559,10 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
               staffList={teamMembers}
               onAddStaff={addTeamMember}
               onSaveProfile={saveProviderProfile}
+              onSaveOrganizationDetails={saveProviderOrganizationDetails}
+              payoutInfo={payoutInfo}
+              onSavePayoutInfo={savePayoutInfo}
+              onPayoutInfoChange={setPayoutInfo}
               onShowToast={showToast}
             />
           )}
@@ -514,6 +580,7 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
         providerName={displayProviderName}
         currentType={currentType}
         initialService={editingService}
+        canActivate={profileComplete}
       />
     </div>
   );

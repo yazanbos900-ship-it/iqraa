@@ -29,6 +29,19 @@ service cloud.firestore {
       return value is string && value.size() > 0 && value.size() <= 64;
     }
 
+    function validServiceFields(data) {
+      return (!('minStudents' in data)
+          || (data.minStudents is number && data.minStudents > 0
+            && data.minStudents % 1 == 0
+            && data.totalSeats is number && data.minStudents <= data.totalSeats))
+        && (!('freeLessonsCount' in data)
+          || (data.freeLessonsCount is number && data.freeLessonsCount >= 1
+            && data.freeLessonsCount % 1 == 0))
+        && (!('paymentMethods' in data)
+          || (data.paymentMethods is list && data.paymentMethods.size() > 0
+            && data.paymentMethods.hasOnly(['cash', 'online'])));
+    }
+
     match /users/{userId} {
       allow get: if owner(userId) || admin();
       allow list: if admin();
@@ -103,7 +116,7 @@ service cloud.firestore {
       allow create, update, delete: if admin();
     }
 
-    // Provider profile fields are part of the public directory; private account data stays in users/{uid}.
+    // Provider profiles are public; payout data is stored in the owner's private subcollection.
     match /providers/{providerId} {
       allow get, list: if true;
       allow create: if owner(providerId)
@@ -116,11 +129,16 @@ service cloud.firestore {
           'name', 'nameEn', 'category', 'city', 'description', 'contactEmail',
           'contactPhone', 'servicesOffered', 'tags', 'website', 'address',
           'coverColor', 'licenseNumber', 'city', 'verificationStatus',
-          'submittedAt', 'updatedAt'
+          'submittedAt', 'updatedAt', 'contactPerson', 'landline',
+          'workingHours', 'addressDetails'
         ])
         && (!('verificationStatus' in request.resource.data) || request.resource.data.verificationStatus == 'pending')
         && request.resource.data.accredited == resource.data.accredited);
       allow delete: if admin();
+
+      match /private/{docId} {
+        allow read, write: if owner(providerId) || admin();
+      }
     }
 
     match /services/{serviceId} {
@@ -132,16 +150,28 @@ service cloud.firestore {
         && request.resource.data.numericPrice is number
         && request.resource.data.numericPrice >= 0
         && request.resource.data.status in ['draft', 'active', 'closed']
-        && (request.resource.data.status != 'active' || providerApproved(request.auth.uid));
+        && (request.resource.data.status != 'active' || providerApproved(request.auth.uid))
+        && request.resource.data.keys().hasOnly([
+          'title', 'category', 'level', 'duration', 'priceNote', 'numericPrice',
+          'currency', 'description', 'seatsAvailable', 'totalSeats', 'status',
+          'mode', 'modules', 'schedule', 'instructorName', 'instructorRole',
+          'prerequisites', 'featured', 'providerId', 'providerName', 'rating',
+          'reviewsCount', 'createdAt', 'updatedAt', 'minStudents',
+          'canStartBelowMin', 'paymentMethods', 'freeLessonsCount', 'startDate'
+        ])
+        && validServiceFields(request.resource.data);
       allow update: if admin() || (signedIn()
         && resource.data.providerId == request.auth.uid
         && request.resource.data.providerId == resource.data.providerId
         && (request.resource.data.status != 'active' || providerApproved(request.auth.uid))
+        && (resource.data.pausedByAdmin != true || request.resource.data.status == resource.data.status)
+        && validServiceFields(request.resource.data)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'title', 'category', 'level', 'duration', 'priceNote', 'numericPrice',
           'currency', 'description', 'seatsAvailable', 'totalSeats', 'status',
           'mode', 'modules', 'schedule', 'instructorName', 'instructorRole',
-          'prerequisites', 'featured', 'updatedAt'
+          'prerequisites', 'featured', 'updatedAt', 'minStudents',
+          'canStartBelowMin', 'paymentMethods', 'freeLessonsCount', 'startDate'
         ]));
       allow delete: if admin() || (signedIn() && resource.data.providerId == request.auth.uid);
     }
