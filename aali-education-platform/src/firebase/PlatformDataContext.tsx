@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import {
   addDoc,
   collection,
+  deleteField,
   deleteDoc,
   doc,
   onSnapshot,
@@ -54,6 +55,7 @@ interface PlatformDataContextValue {
   replyToReview: (reviewId: string, text: string, responder: string) => Promise<void>;
   removeService: (id: string) => Promise<void>;
   updateService: (id: string, changes: Partial<EducationalService>) => Promise<void>;
+  clearAdminServicePause: (id: string) => Promise<void>;
   createInquiry: (service: EducationalService, message: string) => Promise<void>;
   updateInquiry: (id: string, changes: Pick<InquiryRecord, 'status'> & Partial<Pick<InquiryRecord, 'responseNote' | 'interviewDate' | 'internalNotes'>>) => Promise<void>;
   createEnrollment: (booking: Omit<CourseBooking, 'id' | 'transactionId'>) => Promise<CourseBooking>;
@@ -110,6 +112,8 @@ const asService = (id: string, data: Record<string, unknown>): EducationalServic
     ...(typeof data.instructorRole === 'string' ? { instructorRole: data.instructorRole } : {}),
     ...(Array.isArray(data.prerequisites) ? { prerequisites: valueAsStringArray(data.prerequisites) } : {}),
     ...(typeof data.featured === 'boolean' ? { featured: data.featured } : {}),
+    ...(typeof data.pausedByAdmin === 'boolean' ? { pausedByAdmin: data.pausedByAdmin } : {}),
+    ...(data.statusBeforePause === 'active' || data.statusBeforePause === 'draft' || data.statusBeforePause === 'closed' ? { statusBeforePause: data.statusBeforePause } : {}),
   };
 };
 
@@ -145,6 +149,8 @@ const asProvider = (id: string, data: Record<string, unknown>): EducationalProvi
     ...(typeof data.createdAt === 'string' ? { createdAt: data.createdAt } : {}),
     ...(typeof data.submittedAt === 'string' ? { submittedAt: data.submittedAt } : {}),
     ...(typeof data.updatedAt === 'string' ? { updatedAt: data.updatedAt } : {}),
+    ...(typeof data.commissionRate === 'number' && Number.isFinite(data.commissionRate) ? { commissionRate: data.commissionRate } : {}),
+    ...(data.accountStatus === 'active' || data.accountStatus === 'suspended' ? { accountStatus: data.accountStatus } : {}),
   };
 };
 
@@ -341,6 +347,15 @@ export const PlatformDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     await updateDoc(doc(db, 'services', id), { ...safeChanges, updatedAt: new Date().toISOString() });
   }, [user]);
 
+  const clearAdminServicePause = useCallback(async (id: string) => {
+    if (!user || userProfile?.role !== 'admin') throw new Error('هذا الإجراء متاح للإدارة فقط.');
+    await updateDoc(doc(db, 'services', id), {
+      pausedByAdmin: deleteField(),
+      statusBeforePause: deleteField(),
+      updatedAt: new Date().toISOString(),
+    });
+  }, [user, userProfile]);
+
   const createInquiry = useCallback(async (service: EducationalService, message: string) => {
     if (!user || !userProfile) throw new Error('سجّل الدخول لإرسال الاستفسار.');
     if (userProfile.role !== 'student') throw new Error('إرسال الاستفسارات متاح لحساب الطالب.');
@@ -393,8 +408,8 @@ export const PlatformDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const value = useMemo(() => ({
     services, providers, categories, enrollments, inquiries, teamMembers, reviews, savedServiceIds,
     catalogLoading, catalogError, dataError,
-    saveService, updateProvider, submitProviderVerification, saveProviderProfile, addTeamMember, replyToReview, removeService, updateService, createInquiry, updateInquiry, createEnrollment, toggleSavedService,
-  }), [services, providers, categories, enrollments, inquiries, teamMembers, reviews, savedServiceIds, catalogLoading, catalogError, dataError, saveService, updateProvider, submitProviderVerification, saveProviderProfile, addTeamMember, replyToReview, removeService, updateService, createInquiry, updateInquiry, createEnrollment, toggleSavedService]);
+    saveService, updateProvider, submitProviderVerification, saveProviderProfile, addTeamMember, replyToReview, removeService, updateService, clearAdminServicePause, createInquiry, updateInquiry, createEnrollment, toggleSavedService,
+  }), [services, providers, categories, enrollments, inquiries, teamMembers, reviews, savedServiceIds, catalogLoading, catalogError, dataError, saveService, updateProvider, submitProviderVerification, saveProviderProfile, addTeamMember, replyToReview, removeService, updateService, clearAdminServicePause, createInquiry, updateInquiry, createEnrollment, toggleSavedService]);
 
   return <PlatformDataContext.Provider value={value}>{children}</PlatformDataContext.Provider>;
 };

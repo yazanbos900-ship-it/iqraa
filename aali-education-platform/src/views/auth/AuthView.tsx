@@ -216,7 +216,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           <div className="relative grid gap-3 text-sm text-slate-200">
             <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3"><CheckCircle2 className="w-5 h-5 text-indigo-300" /><span>دليل منظم للمؤسسات والبرامج</span></div>
             <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3"><CheckCircle2 className="w-5 h-5 text-indigo-300" /><span>حساب خاص للطلاب ومزودي الخدمة</span></div>
-            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3"><CheckCircle2 className="w-5 h-5 text-indigo-300" /><span>متابعة واضحة للطلبات والإشعارات</span></div>
+            <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-3"><CheckCircle2 className="w-5 h-5 text-indigo-300" /><span>ابدأ مع أعالي، وتابع طلباتك وإشعاراتك</span></div>
           </div>
         </aside>
         <div className="min-w-0 space-y-5">

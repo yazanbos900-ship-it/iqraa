@@ -35,6 +35,8 @@ export interface EducationalProvider {
   createdAt?: string;
   submittedAt?: string;
   updatedAt?: string;
+  commissionRate?: number;
+  accountStatus?: 'active' | 'suspended';
 }
 
 export interface CourseModule {
@@ -68,6 +70,8 @@ export interface EducationalService {
   instructorRole?: string;
   prerequisites?: string[];
   featured?: boolean;
+  pausedByAdmin?: boolean;
+  statusBeforePause?: 'active' | 'draft' | 'closed';
 }
 
 export interface StudentInquiry {
