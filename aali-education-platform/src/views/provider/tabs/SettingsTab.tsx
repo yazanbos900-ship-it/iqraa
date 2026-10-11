@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ProviderTypeOption, StaffMember } from '../types';
 import { EducationalProvider } from '../../../types';
 import { ProviderPayoutInfo } from '../../../firebase/PlatformDataContext';
+import { ProviderIdentityHeader } from '../components/ProviderIdentityHeader';
 import { Card, CardHeader, CardTitle, CardContent } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
 import { Button } from '../../../components/ui/Button';
@@ -37,6 +38,7 @@ interface SettingsTabProps {
   }) => Promise<void>;
   onSavePayoutInfo: (details: ProviderPayoutInfo) => Promise<void>;
   onPayoutInfoChange: (details: ProviderPayoutInfo) => void;
+  onSaveBranding: (field: 'logoUrl' | 'bannerUrl', url: string | null) => Promise<void>;
   onShowToast: (msg: string) => void;
 }
 
@@ -50,9 +52,10 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   onSaveOrganizationDetails,
   onSavePayoutInfo,
   onPayoutInfoChange,
+  onSaveBranding,
   onShowToast,
 }) => {
-  const [activeSection, setActiveSection] = useState<'profile' | 'appearance' | 'team' | 'notifications' | 'payment'>('profile');
+  const [activeSection, setActiveSection] = useState<'profile' | 'team' | 'notifications' | 'payment'>('profile');
   const [isAddStaffOpen, setIsAddStaffOpen] = useState(false);
 
   // Profile form
@@ -76,9 +79,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [accountHolderName, setAccountHolderName] = useState(payoutInfo?.accountHolderName || '');
   const [payoutErrors, setPayoutErrors] = useState<Record<string, string>>({});
   const [isSavingPayout, setIsSavingPayout] = useState(false);
-  const [bannerPreview, setBannerPreview] = useState('');
-  const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
-  const mediaPreviewRef = useRef({ banner: '', gallery: [] as string[] });
 
   // Staff form
   const [staffName, setStaffName] = useState('');
@@ -108,15 +108,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     setPayoutNumber(payoutInfo?.accountNumber || '');
     setAccountHolderName(payoutInfo?.accountHolderName || '');
   }, [payoutInfo]);
-
-  useEffect(() => {
-    mediaPreviewRef.current = { banner: bannerPreview, gallery: galleryPreviews };
-  }, [bannerPreview, galleryPreviews]);
-
-  useEffect(() => () => {
-    if (mediaPreviewRef.current.banner) URL.revokeObjectURL(mediaPreviewRef.current.banner);
-    mediaPreviewRef.current.gallery.forEach((url) => URL.revokeObjectURL(url));
-  }, []);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,21 +166,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     }
   };
 
-  const setBannerFile = (file?: File) => {
-    setBannerPreview((current) => {
-      if (current) URL.revokeObjectURL(current);
-      return file ? URL.createObjectURL(file) : '';
-    });
-  };
-
-  const addGalleryFiles = (files: FileList | null) => {
-    if (!files) return;
-    setGalleryPreviews((current) => [
-      ...current,
-      ...Array.from(files).map((file) => URL.createObjectURL(file)),
-    ]);
-  };
-
   const handleCreateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!staffName.trim()) return;
@@ -242,14 +218,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             بيانات المنشأة
           </button>
           <button
-            onClick={() => setActiveSection('appearance')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
-              activeSection === 'appearance' ? 'bg-white text-indigo-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            تخصيص الصفحة
-          </button>
-          <button
             onClick={() => setActiveSection('team')}
             className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
               activeSection === 'team' ? 'bg-white text-indigo-900 shadow-2xs font-semibold' : 'text-slate-600 hover:text-slate-900'
@@ -278,6 +246,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
       {/* Section 1: Profile */}
       {activeSection === 'profile' && (
+        <>
+        <ProviderIdentityHeader
+          provider={provider}
+          currentType={currentType}
+          onSaveImage={onSaveBranding}
+          onShowMessage={onShowToast}
+        />
         <form onSubmit={handleSaveProfile} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-5 text-xs text-slate-700">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -391,29 +366,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <p className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2">{currentType.nameAr} — الفئة الحالية</p>
           </div>
         </form>
-      )}
-
-      {activeSection === 'appearance' && (
-        <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-5 text-xs text-slate-700">
-          <div>
-            <h3 className="text-base font-bold text-slate-900">تخصيص صفحة الجهة</h3>
-            <p className="mt-1 text-slate-500">معاينة محلية مؤقتة؛ لن تُحفظ الصور ولن تظهر للطلاب قبل ربط التخزين السحابي لاحقاً.</p>
-          </div>
-          <div>
-            <label className="block font-semibold text-slate-800 mb-2">صورة البنر</label>
-            <input type="file" accept="image/*" onChange={(e) => setBannerFile(e.target.files?.[0])} className="block w-full text-xs" />
-            {bannerPreview && <img src={bannerPreview} alt="معاينة البنر" className="mt-3 h-40 w-full rounded-xl object-cover" />}
-          </div>
-          <div>
-            <label className="block font-semibold text-slate-800 mb-2">صور صفحة الجهة</label>
-            <input type="file" accept="image/*" multiple onChange={(e) => addGalleryFiles(e.target.files)} className="block w-full text-xs" />
-            {galleryPreviews.length > 0 && (
-              <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {galleryPreviews.map((src, index) => <img key={`${src}-${index}`} src={src} alt={`معاينة صورة ${index + 1}`} className="h-28 w-full rounded-lg object-cover" />)}
-              </div>
-            )}
-          </div>
-        </section>
+        </>
       )}
 
       {/* Section 2: Team */}

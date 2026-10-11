@@ -47,6 +47,18 @@ export interface EducationalProvider {
     street: string;
     number: string;
   };
+  logoUrl?: string;
+  bannerUrl?: string;
+  bannerImageUrl?: string;
+  galleryImageUrls?: string[];
+  socialLinks?: {
+    instagram?: string;
+    facebook?: string;
+    linkedin?: string;
+    youtube?: string;
+    tiktok?: string;
+    whatsapp?: string;
+  };
 }
 
 export interface CourseModule {
@@ -77,6 +89,7 @@ export interface EducationalService {
   modules?: CourseModule[];
   schedule?: string;
   instructorName?: string;
+  instructorId?: string;
   instructorRole?: string;
   prerequisites?: string[];
   featured?: boolean;

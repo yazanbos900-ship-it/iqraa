@@ -60,6 +60,7 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
     submitProviderVerification,
     saveProviderProfile,
     saveProviderOrganizationDetails,
+    saveProviderBranding,
     getPayoutInfo,
     savePayoutInfo,
     catalogLoading,
@@ -203,6 +204,7 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
   const handleToggleStatus = async (serviceId: string) => {
     const service = currentServices.find((item) => item.id === serviceId);
     if (!service) return;
+    const activating = service.status !== 'active';
     if (service.status !== 'active' && !profileComplete) {
       showToast(`لا يمكن تفعيل الدورة قبل استكمال: ${missingProfileFields.join('، ')}.`);
       return;
@@ -211,8 +213,27 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
       showToast('هذه الدورة موقوفة من الإدارة. يرجى التواصل مع الإدارة.');
       return;
     }
+    if (activating) {
+      const errors: string[] = [];
+      const today = new Date();
+      const localToday = new Date(today.getTime() - today.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+      if (!service.title.trim()) errors.push('عنوان الدورة');
+      if (!service.mode) errors.push('نمط التدريس');
+      if (!service.startDate || service.startDate < localToday) errors.push('تاريخ بدء غير ماضٍ');
+      if (!Number.isInteger(service.totalSeats) || service.totalSeats <= 0) errors.push('عدد مقاعد صحيح');
+      if (!Number.isInteger(service.minStudents) || (service.minStudents ?? 0) <= 0 || (service.minStudents ?? 0) > service.totalSeats) {
+        errors.push('حد أدنى صحيح لا يتجاوز عدد المقاعد');
+      }
+      if (!Number.isFinite(service.numericPrice) || service.numericPrice < 0) errors.push('سعر صالح');
+      if (!service.paymentMethods?.some((method) => method === 'cash' || method === 'online')) errors.push('طريقة دفع واحدة على الأقل');
+      if (!Number.isInteger(service.freeLessonsCount) || (service.freeLessonsCount ?? 0) < 1) errors.push('درس تجريبي مجاني واحد على الأقل');
+      if (errors.length) {
+        showToast(`لا يمكن نشر الدورة؛ تحقق من: ${errors.join('، ')}.`);
+        return;
+      }
+    }
     try {
-      await updateService(serviceId, { status: service.status === 'active' ? 'draft' : 'active' });
+      await updateService(serviceId, { status: activating ? 'active' : 'draft' });
       showToast('تم تحديث حالة نشر البرنامج.');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'تعذر تحديث البرنامج.');
@@ -563,6 +584,7 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
               payoutInfo={payoutInfo}
               onSavePayoutInfo={savePayoutInfo}
               onPayoutInfoChange={setPayoutInfo}
+              onSaveBranding={saveProviderBranding}
               onShowToast={showToast}
             />
           )}
@@ -577,9 +599,16 @@ export const ProviderPortal: React.FC<ProviderPortalProps> = ({
           setEditingService(null);
         }}
         onSave={handleSaveService}
+        onOpenSettings={() => {
+          setIsAddModalOpen(false);
+          setEditingService(null);
+          setActiveTab('settings');
+        }}
         providerName={displayProviderName}
         currentType={currentType}
         initialService={editingService}
+        teamMembers={teamMembers}
+        missingProfileFields={missingProfileFields}
         canActivate={profileComplete}
       />
     </div>

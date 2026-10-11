@@ -1,448 +1,604 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { EducationalService } from '../../../types';
-import { ProviderTypeOption, ProviderCategoryType } from '../types';
+import { ProviderTypeOption, StaffMember } from '../types';
 import { Modal } from '../../../components/ui/Modal';
 import { Button } from '../../../components/ui/Button';
-import { Input } from '../../../components/ui/Input';
-import { Select } from '../../../components/ui/Select';
-import { Badge } from '../../../components/ui/Badge';
-import { 
-  Plus, 
-  Sparkles, 
-  Layers, 
-  Calendar, 
-  CheckCircle2, 
-  DollarSign, 
-  Users, 
-  GraduationCap, 
-  Clock, 
-  BookOpen,
-  Info
-} from 'lucide-react';
+import { Calendar, Clock, Users } from 'lucide-react';
 
 interface AddEditProgramModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (serviceData: Partial<EducationalService>) => void;
+  onOpenSettings: () => void;
   providerName: string;
   currentType: ProviderTypeOption;
   initialService?: EducationalService | null;
+  teamMembers: StaffMember[];
+  missingProfileFields: string[];
   canActivate: boolean;
 }
+
+interface ProgramFieldErrors {
+  title?: string;
+  mode?: string;
+  startDate?: string;
+  seats?: string;
+  minStudents?: string;
+  price?: string;
+  paymentMethods?: string;
+  freeLessonsCount?: string;
+}
+
+const getTodayDate = () => {
+  const today = new Date();
+  const offset = today.getTimezoneOffset();
+  return new Date(today.getTime() - offset * 60_000).toISOString().slice(0, 10);
+};
+
+const getSectorFields = (sector: ProviderTypeOption['id']) => {
+  switch (sector) {
+    case 'schools':
+      return [
+        { key: 'curriculum', label: 'المنهاج والاعتماد', placeholder: 'مثال: المنهاج الوطني، البكالوريا الدولية' },
+        { key: 'transport', label: 'خيارات النقل', placeholder: 'مثال: باصات من الأحياء الرئيسية' },
+        { key: 'fees', label: 'تسهيلات الرسوم', placeholder: 'مثال: تقسيط على 3 دفعات' },
+      ];
+    case 'kindergartens':
+      return [
+        { key: 'meals', label: 'نظام التغذية والوجبات', placeholder: 'مثال: وجبة صحية يومية' },
+        { key: 'schedule', label: 'ساعات وفترة الدوام', placeholder: 'مثال: دوام صباحي من 8 ص إلى 1 ظ' },
+        { key: 'activities', label: 'الأنشطة التعليمية', placeholder: 'مثال: أنشطة مونتيسوري وحركية' },
+      ];
+    case 'institutes_lang':
+      return [
+        { key: 'placement', label: 'اختبار تحديد المستوى', placeholder: 'مثال: اختبار تحديد مستوى قبل بدء الدورة' },
+        { key: 'staff', label: 'طاقم التدريب واللغة', placeholder: 'مثال: مدربون ناطقون باللغة' },
+        { key: 'certificate', label: 'الشهادة الممنوحة', placeholder: 'مثال: شهادة إتمام معتمدة' },
+      ];
+    case 'institutes_tech':
+      return [
+        { key: 'technology', label: 'التقنيات والمشاريع', placeholder: 'مثال: تطبيقات عملية على أدوات حديثة' },
+        { key: 'career', label: 'الإرشاد المهني', placeholder: 'مثال: جلسات إرشاد وتجهيز لسوق العمل' },
+        { key: 'graduation', label: 'مشروع التخرج', placeholder: 'مثال: مشروع تطبيقي نهائي' },
+      ];
+    case 'tutors':
+      return [
+        { key: 'platform', label: 'منصة وطريقة البث', placeholder: 'مثال: دروس مباشرة عبر منصة تعليمية' },
+        { key: 'materials', label: 'الحقائب والملخصات', placeholder: 'مثال: ملخصات وتمارين بعد كل درس' },
+        { key: 'followUp', label: 'المتابعة والتواصل', placeholder: 'مثال: متابعة أسبوعية مع الطالب' },
+      ];
+    default:
+      return [];
+  }
+};
+
+const splitDescription = (description: string) => {
+  const match = description.match(/(?:\r?\n)?• المميزات: ([^\r\n]*)$/);
+  if (!match) return { description, customValues: ['', '', ''] };
+  const values = match[1].split('|').map((value) => value.trim());
+  return {
+    description: description.slice(0, match.index).trimEnd(),
+    customValues: [values[0] || '', values[1] || '', values[2] || ''],
+  };
+};
 
 export const AddEditProgramModal: React.FC<AddEditProgramModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  onOpenSettings,
   providerName,
   currentType,
   initialService,
+  teamMembers,
+  missingProfileFields,
   canActivate,
 }) => {
   const [title, setTitle] = useState('');
   const [level, setLevel] = useState('');
   const [duration, setDuration] = useState('');
-  const [priceNote, setPriceNote] = useState('');
-  const [numericPrice, setNumericPrice] = useState(0);
-  const [seats, setSeats] = useState(1);
-  const [mode, setMode] = useState<'on-campus' | 'online' | 'hybrid'>('on-campus');
+  const [numericPrice, setNumericPrice] = useState('');
+  const [currency, setCurrency] = useState('ر.س');
+  const [isFree, setIsFree] = useState(false);
+  const [seats, setSeats] = useState('');
+  const [mode, setMode] = useState<EducationalService['mode'] | ''>('');
   const [description, setDescription] = useState('');
-  const [status, setStatus] = useState<'active' | 'draft'>('active');
   const [startDate, setStartDate] = useState('');
-  const [minStudents, setMinStudents] = useState(1);
+  const [minStudents, setMinStudents] = useState('');
   const [canStartBelowMin, setCanStartBelowMin] = useState(false);
-  const [paymentMethods, setPaymentMethods] = useState<('cash' | 'online')[]>(['cash']);
-  const [freeLessonsCount, setFreeLessonsCount] = useState(1);
+  const [paymentMethods, setPaymentMethods] = useState<('cash' | 'online')[]>([]);
+  const [freeLessonsCount, setFreeLessonsCount] = useState('1');
+  const [instructorId, setInstructorId] = useState('');
   const [instructorName, setInstructorName] = useState('');
-  const [validationError, setValidationError] = useState('');
-
-  // Custom provider-specific dynamic fields state
-  const [customField1, setCustomField1] = useState('');
-  const [customField2, setCustomField2] = useState('');
-  const [customField3, setCustomField3] = useState('');
+  const [customValues, setCustomValues] = useState(['', '', '']);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
 
   useEffect(() => {
     if (initialService) {
-      setTitle(initialService.title);
-      setLevel(initialService.level);
-      setDuration(initialService.duration);
-      setPriceNote(initialService.priceNote);
-      setNumericPrice(initialService.numericPrice ?? 0);
-      setSeats(initialService.totalSeats || 1);
-      setMode(initialService.mode);
-      setDescription(initialService.description);
-      setStatus(initialService.status === 'draft' ? 'draft' : 'active');
+      const parsedDescription = splitDescription(initialService.description || '');
+      setTitle(initialService.title || '');
+      setLevel(initialService.level || '');
+      setDuration(initialService.duration || '');
+      setNumericPrice(String(initialService.numericPrice ?? ''));
+      setCurrency(initialService.currency || 'ر.س');
+      setIsFree(initialService.numericPrice === 0);
+      setSeats(initialService.totalSeats ? String(initialService.totalSeats) : '');
+      setMode(initialService.mode || '');
+      setDescription(parsedDescription.description);
       setStartDate(initialService.startDate || '');
-      setMinStudents(initialService.minStudents ?? 1);
+      setMinStudents(initialService.minStudents ? String(initialService.minStudents) : '');
       setCanStartBelowMin(initialService.canStartBelowMin ?? false);
-      setPaymentMethods(initialService.paymentMethods?.filter((method) => method === 'cash' || method === 'online') || ['cash']);
-      setFreeLessonsCount(initialService.freeLessonsCount ?? 1);
+      setPaymentMethods(initialService.paymentMethods?.filter((method) => method === 'cash' || method === 'online') || []);
+      setFreeLessonsCount(initialService.freeLessonsCount ? String(initialService.freeLessonsCount) : '');
+      setInstructorId(initialService.instructorId || (initialService.instructorName ? 'legacy' : ''));
       setInstructorName(initialService.instructorName || '');
+      setCustomValues(parsedDescription.customValues);
     } else {
       setTitle('');
       setLevel('');
       setDuration('');
-      setPriceNote('');
-      setNumericPrice(0);
-      setCustomField1('');
-      setCustomField2('');
-      setCustomField3('');
-      setSeats(1);
-      setMode('on-campus');
+      setNumericPrice('');
+      setCurrency('ر.س');
+      setIsFree(false);
+      setSeats('');
+      setMode('');
       setDescription('');
-      setStatus(canActivate ? 'active' : 'draft');
       setStartDate('');
-      setMinStudents(1);
+      setMinStudents('');
       setCanStartBelowMin(false);
-      setPaymentMethods(['cash']);
-      setFreeLessonsCount(1);
+      setPaymentMethods([]);
+      setFreeLessonsCount('1');
+      setInstructorId('');
       setInstructorName('');
+      setCustomValues(['', '', '']);
     }
-    setValidationError('');
-  }, [initialService, currentType, isOpen, canActivate]);
+    setShowValidationErrors(false);
+  }, [initialService, currentType, isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-    if (!Number.isInteger(minStudents) || minStudents <= 0 || minStudents > seats) {
-      setValidationError('الحد الأدنى للطلاب يجب أن يكون عدداً صحيحاً أكبر من صفر ولا يتجاوز الطاقة الاستيعابية.');
-      return;
-    }
-    if (!Number.isInteger(freeLessonsCount) || freeLessonsCount < 1) {
-      setValidationError('عدد الدروس المجانية يجب أن يكون عدداً صحيحاً لا يقل عن 1.');
-      return;
-    }
-    if (paymentMethods.length === 0) {
-      setValidationError('اختر طريقة دفع واحدة على الأقل.');
-      return;
-    }
-    if (status === 'active' && !canActivate) {
-      setValidationError('أكمل ملف المؤسسة وحساب استلام المبالغ قبل تفعيل الدورة. يمكنك حفظها كمسودة.');
-      return;
-    }
-    if (initialService?.pausedByAdmin && status !== initialService.status) {
-      setValidationError('هذه الدورة موقوفة من الإدارة. يرجى التواصل مع الإدارة.');
-      return;
-    }
-    setValidationError('');
+  const validationErrors: ProgramFieldErrors = {};
+  const numericSeats = Number(seats);
+  const numericMinStudents = Number(minStudents);
+  const numericFreeLessons = Number(freeLessonsCount);
+  const numericCoursePrice = Number(numericPrice);
+  if (!title.trim()) validationErrors.title = 'عنوان الدورة مطلوب.';
+  if (!mode) validationErrors.mode = 'نمط التدريس مطلوب.';
+  if (!startDate) validationErrors.startDate = 'تاريخ البدء مطلوب.';
+  else if (!initialService && startDate < getTodayDate()) validationErrors.startDate = 'تاريخ البدء لا يمكن أن يكون في الماضي.';
+  if (!Number.isInteger(numericSeats) || numericSeats <= 0) validationErrors.seats = 'عدد المقاعد يجب أن يكون عدداً صحيحاً أكبر من صفر.';
+  if (!Number.isInteger(numericMinStudents) || numericMinStudents <= 0) {
+    validationErrors.minStudents = 'الحد الأدنى يجب أن يكون عدداً صحيحاً أكبر من صفر.';
+  } else if (Number.isInteger(numericSeats) && numericMinStudents > numericSeats) {
+    validationErrors.minStudents = 'الحد الأدنى لا يمكن أن يتجاوز عدد المقاعد.';
+  }
+  if (!isFree && (!Number.isFinite(numericCoursePrice) || numericCoursePrice <= 0)) {
+    validationErrors.price = 'سعر الدورة يجب أن يكون أكبر من صفر، أو اختر دورة مجانية.';
+  }
+  if (paymentMethods.length === 0) validationErrors.paymentMethods = 'اختر طريقة دفع واحدة على الأقل.';
+  if (!Number.isInteger(numericFreeLessons) || numericFreeLessons < 1) {
+    validationErrors.freeLessonsCount = 'عدد الدروس المجانية يجب أن يكون عدداً صحيحاً لا يقل عن 1.';
+  }
 
-    let enrichedDesc = description;
-    if (customField1 || customField2) {
-      enrichedDesc += `\n• المميزات: ${[customField1, customField2, customField3].filter(Boolean).join(' | ')}`;
-    }
+  const hasValidationErrors = Object.keys(validationErrors).length > 0;
+  const hasStartedEditing = Boolean(
+    title || mode || startDate || seats || minStudents || numericPrice || paymentMethods.length
+      || freeLessonsCount !== (initialService?.freeLessonsCount ? String(initialService.freeLessonsCount) : '1'),
+  );
+  const selectedInstructor = teamMembers.find((member) => member.id === instructorId);
+  const instructorOptionIsMissing = Boolean(
+    instructorId && !selectedInstructor && instructorName,
+  );
+  const sectorFields = getSectorFields(currentType.id);
+  const publishDisabled = !canActivate || hasValidationErrors || Boolean(initialService?.pausedByAdmin);
+  const publishReason = initialService?.pausedByAdmin
+    ? 'هذه الدورة موقوفة من الإدارة. يرجى التواصل مع الإدارة.'
+    : !canActivate
+      ? `أكمل: ${missingProfileFields.join('، ') || 'بيانات المؤسسة وحساب الاستلام'}.`
+      : Object.values(validationErrors)[0];
+
+  const updateCustomValue = (index: number, value: string) => {
+    setCustomValues((current) => current.map((item, itemIndex) => itemIndex === index ? value : item));
+  };
+
+  const saveProgram = (status: EducationalService['status']) => {
+    const selectedInstructorMember = teamMembers.find((member) => member.id === instructorId);
+    const featureLines = customValues
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const enrichedDescription = [
+      description.trim(),
+      featureLines.length ? `• المميزات: ${featureLines.join(' | ')}` : '',
+    ].filter(Boolean).join('\n');
+    const parsedPrice = isFree ? 0 : Number(numericPrice);
+    const parsedSeats = Number(seats);
+    const parsedMinStudents = Number(minStudents);
+    const parsedFreeLessons = Number(freeLessonsCount);
 
     onSave({
-      title,
-      level,
-      duration,
-      priceNote: priceNote || `${numericPrice} ر.س`,
-      numericPrice: Number(numericPrice) || 0,
-      currency: 'ر.س',
-      description: enrichedDesc.trim(),
-      seatsAvailable: seats,
-      totalSeats: seats,
-      mode,
+      title: title.trim(),
+      level: level.trim(),
+      duration: duration.trim(),
+      priceNote: isFree ? 'مجانية' : `${parsedPrice} ${currency}`,
+      numericPrice: Number.isFinite(parsedPrice) && parsedPrice >= 0 ? parsedPrice : 0,
+      currency,
+      description: enrichedDescription,
+      seatsAvailable: initialService?.seatsAvailable ?? (Number.isFinite(parsedSeats) ? parsedSeats : 0),
+      totalSeats: Number.isFinite(parsedSeats) ? parsedSeats : 0,
+      mode: mode || 'on-campus',
       status,
-      startDate,
-      minStudents,
+      ...(startDate ? { startDate } : {}),
+      ...(Number.isFinite(parsedMinStudents) && minStudents.trim() ? { minStudents: parsedMinStudents } : {}),
       canStartBelowMin,
-      paymentMethods,
-      freeLessonsCount,
-      instructorName,
-      category: currentType.id === 'institutes_lang' ? 'institutes' : ['institutes_tech', 'vocational'].includes(currentType.id) ? 'training_centers' : currentType.id === 'universities' ? 'universities' : currentType.id === 'tutors' ? 'tutors' : currentType.id === 'libraries' ? 'libraries' : 'schools',
+      ...(paymentMethods.length ? { paymentMethods } : {}),
+      ...(Number.isFinite(parsedFreeLessons) && freeLessonsCount.trim() ? { freeLessonsCount: parsedFreeLessons } : {}),
+      ...(selectedInstructorMember
+        ? { instructorId: selectedInstructorMember.id, instructorName: selectedInstructorMember.name }
+        : { instructorId: '', instructorName: instructorOptionIsMissing ? instructorName : '' }),
+      category: currentType.id === 'institutes_lang'
+        ? 'institutes'
+        : ['institutes_tech', 'vocational'].includes(currentType.id)
+          ? 'training_centers'
+          : currentType.id === 'universities'
+            ? 'universities'
+            : currentType.id === 'tutors'
+              ? 'tutors'
+              : currentType.id === 'libraries'
+                ? 'libraries'
+                : 'schools',
       providerName,
     });
     onClose();
   };
 
+  const handlePublish = () => {
+    setShowValidationErrors(true);
+    if (publishDisabled) return;
+    saveProgram('active');
+  };
+
+  const showError = (error?: string) => showValidationErrors || hasStartedEditing ? error : undefined;
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialService ? 'تعديل البرنامج التعليمي' : `إضافة برنامج تعليمي جديد لـ ${currentType.categoryTag}`}
+      title={initialService ? 'تعديل الدورة' : 'إضافة دورة جديدة'}
       maxWidth="lg"
     >
-      <form onSubmit={handleSubmit} className="space-y-5 text-xs text-slate-700">
-        {/* Dynamic Provider Type Banner */}
-        <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className={`w-8 h-8 rounded-lg ${currentType.avatarBg} text-white font-bold flex items-center justify-center text-xs`}>
-              {currentType.avatarText.slice(0, 2)}
-            </div>
-            <div>
-              <span className="font-bold text-indigo-950 block">{providerName}</span>
-              <span className="text-[11px] text-indigo-800">نوع المؤسسة: {currentType.nameAr} ({currentType.categoryTag})</span>
-            </div>
+      <form onSubmit={(event) => event.preventDefault()} className="space-y-5 text-sm text-slate-700">
+        {!canActivate && (
+          <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 space-y-2">
+            <p className="font-bold">ملف المؤسسة غير مكتمل؛ لن تتمكن من نشر الدورة الآن.</p>
+            <p>البيانات الناقصة: {missingProfileFields.join('، ') || 'بيانات المؤسسة وحساب استلام المبالغ'}.</p>
+            <button type="button" onClick={onOpenSettings} className="font-bold text-indigo-700 underline underline-offset-2">
+              الانتقال إلى الإعدادات
+            </button>
           </div>
-          <Badge variant="info">نموذج ذكي متكيف</Badge>
+        )}
+        {initialService?.pausedByAdmin && (
+          <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+            موقوفة من الإدارة. يرجى التواصل مع الإدارة.
+          </div>
+        )}
+
+        <div className="rounded-xl border border-slate-200 bg-indigo-50/60 p-3">
+          <span className="block font-bold text-indigo-950">{providerName}</span>
+          <span className="text-xs text-indigo-800">نوع المؤسسة: {currentType.nameAr}</span>
         </div>
 
-        {/* Basic Fields */}
-        <div className="space-y-4">
+        <section className="space-y-4">
+          <h3 className="border-b border-slate-200 pb-2 text-base font-bold text-slate-900">المعلومات الأساسية</h3>
           <div>
-            <label className="block font-semibold text-slate-800 mb-1">
-              عنوان البرنامج / الدورة التعليمية <span className="text-rose-500">*</span>
+            <label htmlFor="program-title" className="mb-1 block font-semibold text-slate-800">
+              عنوان الدورة <span className="text-rose-600">*</span>
             </label>
             <input
+              id="program-title"
               type="text"
-              required
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="مثال: برنامج الدبلوما الأمريكية، دبلوم الذكاء الاصطناعي، إلخ..."
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="مثال: دورة اللغة الإنجليزية للمبتدئين"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
+            {showError(validationErrors.title) && <p className="mt-1 text-xs text-rose-600">{validationErrors.title}</p>}
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">
-                المرحلة / الفئة المستهدفة
-              </label>
-              <input
-                type="text"
-                value={level}
-                onChange={(e) => setLevel(e.target.value)}
-                placeholder="مثال: المرحلة الثانوية، روضة أطفال، مبتدئ..."
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-800 mb-1">
-                طريقة ووسيلة التدريس
+              <label htmlFor="program-mode" className="mb-1 block font-semibold text-slate-800">
+                نمط التدريس <span className="text-rose-600">*</span>
               </label>
               <select
+                id="program-mode"
                 value={mode}
-                onChange={(e) => setMode(e.target.value as any)}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                onChange={(event) => setMode(event.target.value as EducationalService['mode'] | '')}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="on-campus">حضوري بالمقر والمختبرات</option>
-                <option value="online">عن بُعد (Online جلسات مباشرة ومسجلة)</option>
-                <option value="hybrid">مدمج (حضوري وعن بُعد)</option>
+                <option value="">اختر نمط التدريس</option>
+                <option value="on-campus">حضوري</option>
+                <option value="online">عن بُعد</option>
+                <option value="hybrid">مدمج</option>
               </select>
+              {showError(validationErrors.mode) && <p className="mt-1 text-xs text-rose-600">{validationErrors.mode}</p>}
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">
-                المدة الدراسية
-              </label>
+              <label htmlFor="program-level" className="mb-1 block font-semibold text-slate-800">الفئة المستهدفة</label>
               <input
+                id="program-level"
                 type="text"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                placeholder="عام دراسي، 8 أسابيع، فصل..."
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block font-semibold text-slate-800 mb-1">تاريخ البدء</label>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-800 mb-1">الحد الأدنى للطلاب</label>
-                <input type="number" min={1} step={1} max={seats} value={minStudents} onChange={(e) => setMinStudents(Number(e.target.value))} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono" />
-                <span className="mt-1 block text-[10px] text-slate-500">الحد الأقصى هو الطاقة الاستيعابية ({seats}).</span>
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-800 mb-1">عدد الدروس المجانية</label>
-                <input type="number" min={1} step={1} value={freeLessonsCount} onChange={(e) => setFreeLessonsCount(Number(e.target.value))} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono" />
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-800 mb-1">المدرّس المسؤول</label>
-                <input type="text" value={instructorName} onChange={(e) => setInstructorName(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs" />
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
-              <input type="checkbox" checked={canStartBelowMin} onChange={(e) => setCanStartBelowMin(e.target.checked)} />
-              تبدأ الدورة حتى إن لم يصل العدد إلى الحد الأدنى
-            </label>
-
-            <fieldset className="space-y-2">
-              <legend className="font-semibold text-slate-800">طرق الدفع المقبولة <span className="text-rose-600">*</span></legend>
-              <div className="flex items-center gap-5">
-                {([
-                  ['cash', 'نقداً'],
-                  ['online', 'إلكترونياً'],
-                ] as const).map(([method, label]) => (
-                  <label key={method} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={paymentMethods.includes(method)}
-                      onChange={(e) => setPaymentMethods((current) => e.target.checked
-                        ? [...current, method]
-                        : current.filter((item) => item !== method))}
-                    />
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-
-            <div>
-              <label className="block font-semibold text-slate-800 mb-1">
-                الرسوم المقدرة (ر.س)
-              </label>
-              <input
-                type="number"
-                value={numericPrice}
-                onChange={(e) => {
-                  setNumericPrice(Number(e.target.value));
-                  setPriceNote(`${e.target.value} ر.س`);
-                }}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-slate-800 mb-1">
-                الطاقة الاستيعابية (المقاعد)
-              </label>
-              <input
-                type="number"
-                value={seats}
-                onChange={(e) => setSeats(Number(e.target.value))}
-                min={1}
-                max={500}
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
+                value={level}
+                onChange={(event) => setLevel(event.target.value)}
+                placeholder="مثال: المرحلة الثانوية، مبتدئ"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
-
-          {/* DYNAMIC SECTOR FIELDS (The core requirement of Phase 3) */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                حقول ومزايا مخصصة لقطاع ({currentType.nameAr})
-              </span>
-              <span className="text-[10px] text-slate-500">ميزة نموذج مرن</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                  {currentType.id === 'kindergartens'
-                    ? 'نظام التغذية والوجبات'
-                    : currentType.id === 'institutes_lang'
-                    ? 'اختبار تحديد المستوى'
-                    : currentType.id === 'institutes_tech'
-                    ? 'التقنيات والمشاريع'
-                    : currentType.id === 'tutors'
-                    ? 'منصة وطريقة البث'
-                    : 'المنهاج والاعتماد'}
-                </label>
-                <input
-                  type="text"
-                  value={customField1}
-                  onChange={(e) => setCustomField1(e.target.value)}
-                  placeholder="بيان الميزة الأولى..."
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                  {currentType.id === 'kindergartens'
-                    ? 'ساعات وفترة الدوام'
-                    : currentType.id === 'institutes_lang'
-                    ? 'طاقم التدريب واللغة'
-                    : currentType.id === 'institutes_tech'
-                    ? 'الإرشاد المهني للوظائف'
-                    : currentType.id === 'tutors'
-                    ? 'الحقائب والملخصات'
-                    : 'خيارات النقل المدرسي'}
-                </label>
-                <input
-                  type="text"
-                  value={customField2}
-                  onChange={(e) => setCustomField2(e.target.value)}
-                  placeholder="بيان الميزة الثانية..."
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-slate-600 mb-1">
-                  {currentType.id === 'kindergartens'
-                    ? 'أنشطة مونتيسوري الحركية'
-                    : currentType.id === 'institutes_lang'
-                    ? 'الشهادة الممنوحة'
-                    : currentType.id === 'institutes_tech'
-                    ? 'مشروع التخرج'
-                    : currentType.id === 'tutors'
-                    ? 'المتابعة والتواصل'
-                    : 'تسهيلات سداد الرسوم'}
-                </label>
-                <input
-                  type="text"
-                  value={customField3}
-                  onChange={(e) => setCustomField3(e.target.value)}
-                  placeholder="بيان الميزة الثالثة..."
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-md text-xs"
-                />
-              </div>
-            </div>
-          </div>
-
           <div>
-            <label className="block font-semibold text-slate-800 mb-1">
-              الوصف التفصيلي والأهداف التعليمية
+            <label htmlFor="program-description" className="mb-1 block font-semibold text-slate-800">
+              وصف الدورة وما سيتعلمه الطالب
             </label>
             <textarea
+              id="program-description"
               rows={3}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="اكتب نبذة عن مفردات البرنامج، المخرجات التعليمية، والمهارات المكتسبة..."
-              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="اكتب نبذة عن محتوى الدورة والمهارات التي سيكتسبها الطالب..."
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
+        </section>
 
-          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-            <div>
-              <span className="font-semibold text-slate-900 block">حالة نشر البرنامج</span>
-              <span className="text-[11px] text-slate-500">اختر إذا كان البرنامج متاحاً للتقديم الفوري أو كمسودة</span>
+        <section className="space-y-4">
+          <h3 className="border-b border-slate-200 pb-2 text-base font-bold text-slate-900">الموعد والمدة</h3>
+          <div>
+            <label htmlFor="program-start-date" className="mb-1 block font-semibold text-slate-800">
+              تاريخ البدء <span className="text-rose-600">*</span>
+            </label>
+            <div className="relative">
+              <Calendar className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                id="program-start-date"
+                type="date"
+                value={startDate}
+                min={!initialService ? getTodayDate() : undefined}
+                onChange={(event) => setStartDate(event.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pe-3 ps-10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setStatus('active')}
-                disabled={!canActivate || Boolean(initialService?.pausedByAdmin)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${canActivate && !initialService?.pausedByAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} ${
-                  status === 'active' ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
-                }`}
-              >
-                مفتوح للتسجيل
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatus('draft')}
-                disabled={Boolean(initialService?.pausedByAdmin)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${initialService?.pausedByAdmin ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${
-                  status === 'draft' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'
-                }`}
-              >
-                حفظ كمسودة
-              </button>
+            {showError(validationErrors.startDate) && <p className="mt-1 text-xs text-rose-600">{validationErrors.startDate}</p>}
+          </div>
+          <div>
+            <label htmlFor="program-duration" className="mb-1 block font-semibold text-slate-800">المدة الدراسية</label>
+            <div className="relative">
+              <Clock className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                id="program-duration"
+                type="text"
+                value={duration}
+                onChange={(event) => setDuration(event.target.value)}
+                placeholder="مثال: 8 أسابيع، فصل دراسي"
+                className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pe-3 ps-10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
           </div>
-          {!canActivate && <p className="text-amber-700 text-[11px]">أكمل بيانات المؤسسة وحساب استلام المبالغ لتفعيل الدورة؛ حفظ المسودة متاح.</p>}
-          {initialService?.pausedByAdmin && <p className="text-amber-700 text-[11px]">هذه الدورة موقوفة من الإدارة. يرجى التواصل مع الإدارة.</p>}
-          {validationError && <p role="alert" className="text-rose-600">{validationError}</p>}
-        </div>
+        </section>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
-          <Button type="button" variant="outline" size="sm" onClick={onClose} className="text-xs">
-            إلغاء
-          </Button>
-          <Button type="submit" variant="primary" size="sm" className="text-xs font-semibold">
-            {initialService ? 'حفظ التعديلات' : 'نشر البرنامج في المنصة'}
-          </Button>
+        <section className="space-y-4">
+          <h3 className="border-b border-slate-200 pb-2 text-base font-bold text-slate-900">المقاعد</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="program-seats" className="mb-1 block font-semibold text-slate-800">
+                عدد المقاعد (الحد الأقصى للطلاب) <span className="text-rose-600">*</span>
+              </label>
+              <div className="relative">
+                <Users className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  id="program-seats"
+                  type="number"
+                  min={1}
+                  max={500}
+                  step={1}
+                  value={seats}
+                  onChange={(event) => setSeats(event.target.value)}
+                  placeholder="مثال: 20"
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pe-3 ps-10 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              {showError(validationErrors.seats) && <p className="mt-1 text-xs text-rose-600">{validationErrors.seats}</p>}
+            </div>
+            <div>
+              <label htmlFor="program-min-students" className="mb-1 block font-semibold text-slate-800">
+                الحد الأدنى للطلاب <span className="text-rose-600">*</span>
+              </label>
+              <input
+                id="program-min-students"
+                type="number"
+                min={1}
+                step={1}
+                value={minStudents}
+                onChange={(event) => setMinStudents(event.target.value)}
+                placeholder="مثال: 5"
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="mt-1 text-xs text-slate-500">يجب ألا يتجاوز العدد الأقصى للطلاب.</p>
+              {showError(validationErrors.minStudents) && <p className="mt-1 text-xs text-rose-600">{validationErrors.minStudents}</p>}
+            </div>
+          </div>
+          <label className="flex items-start gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={canStartBelowMin}
+              onChange={(event) => setCanStartBelowMin(event.target.checked)}
+              className="mt-0.5 accent-indigo-600"
+            />
+            <span>تبدأ الدورة حتى لو لم يصل العدد للحد الأدنى</span>
+          </label>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="border-b border-slate-200 pb-2 text-base font-bold text-slate-900">السعر والدفع</h3>
+          <div>
+            <label htmlFor="program-price" className="mb-1 block font-semibold text-slate-800">
+              سعر الدورة <span className="text-rose-600">*</span> <span className="font-normal text-slate-500">({currency})</span>
+            </label>
+            <input
+              id="program-price"
+              type="number"
+              min={isFree ? 0 : 0.01}
+              step="any"
+              value={numericPrice}
+              disabled={isFree}
+              onChange={(event) => setNumericPrice(event.target.value)}
+              placeholder="أدخل سعر الدورة"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-slate-100"
+            />
+            {showError(validationErrors.price) && <p className="mt-1 text-xs text-rose-600">{validationErrors.price}</p>}
+            <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={isFree}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setIsFree(checked);
+                  setNumericPrice(checked ? '0' : '');
+                }}
+                className="accent-indigo-600"
+              />
+              دورة مجانية
+            </label>
+          </div>
+          <fieldset>
+            <legend className="mb-2 font-semibold text-slate-800">
+              طرق الدفع المقبولة <span className="text-rose-600">*</span>
+            </legend>
+            <div className="flex flex-wrap gap-5">
+              {([
+                ['cash', 'نقداً'],
+                ['online', 'إلكترونياً'],
+              ] as const).map(([method, label]) => (
+                <label key={method} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={paymentMethods.includes(method)}
+                    onChange={(event) => setPaymentMethods((current) => event.target.checked
+                      ? [...current, method]
+                      : current.filter((item) => item !== method))}
+                    className="accent-indigo-600"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            {showError(validationErrors.paymentMethods) && <p className="mt-1 text-xs text-rose-600">{validationErrors.paymentMethods}</p>}
+          </fieldset>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="border-b border-slate-200 pb-2 text-base font-bold text-slate-900">المدرّس</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="program-instructor" className="mb-1 block font-semibold text-slate-800">المدرّس المسؤول</label>
+              <select
+                id="program-instructor"
+                value={instructorId}
+                onChange={(event) => {
+                  const nextId = event.target.value;
+                  setInstructorId(nextId);
+                  setInstructorName(teamMembers.find((member) => member.id === nextId)?.name || (nextId === 'legacy' ? instructorName : ''));
+                }}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">بدون مدرّس محدد</option>
+                {instructorOptionIsMissing && <option value="legacy">{instructorName}</option>}
+                {teamMembers.map((member) => (
+                  <option key={member.id} value={member.id}>{member.name}</option>
+                ))}
+              </select>
+              {teamMembers.length === 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                  <span>لا يوجد موظفون بعد.</span>
+                  <button type="button" onClick={onOpenSettings} className="font-semibold text-indigo-700 underline underline-offset-2">
+                    الانتقال إلى الإعدادات
+                  </button>
+                </div>
+              )}
+            </div>
+            <div>
+              <label htmlFor="program-free-lessons" className="mb-1 block font-semibold text-slate-800">
+                عدد الدروس التجريبية المجانية
+              </label>
+              <input
+                id="program-free-lessons"
+                type="number"
+                min={1}
+                step={1}
+                value={freeLessonsCount}
+                onChange={(event) => setFreeLessonsCount(event.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="mt-1 text-xs text-slate-500">عدد الدروس التي يحضرها الطالب مجاناً قبل الدفع.</p>
+              {showError(validationErrors.freeLessonsCount) && <p className="mt-1 text-xs text-rose-600">{validationErrors.freeLessonsCount}</p>}
+            </div>
+          </div>
+        </section>
+
+        {sectorFields.length > 0 && (
+          <details className="rounded-xl border border-slate-200 bg-slate-50">
+            <summary className="cursor-pointer list-none px-4 py-3 font-bold text-slate-900">
+              تفاصيل إضافية (اختياري)
+            </summary>
+            <div className="grid grid-cols-1 gap-4 border-t border-slate-200 p-4 sm:grid-cols-2">
+              {sectorFields.map((field, index) => (
+                <div key={field.key}>
+                  <label htmlFor={`program-extra-${field.key}`} className="mb-1 block font-semibold text-slate-800">{field.label}</label>
+                  <input
+                    id={`program-extra-${field.key}`}
+                    type="text"
+                    value={customValues[index] || ''}
+                    onChange={(event) => updateCustomValue(index, event.target.value)}
+                    placeholder={field.placeholder}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+
+        <div className="space-y-2 border-t border-slate-200 pt-4">
+          {!initialService && (
+            <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => saveProgram('draft')}>
+                حفظ كمسودة
+              </Button>
+              <Button type="button" variant="primary" size="sm" disabled={publishDisabled} onClick={handlePublish}>
+                نشر الدورة
+              </Button>
+            </div>
+          )}
+          {initialService && (
+            <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <Button type="button" variant="primary" size="sm" onClick={() => saveProgram(initialService.status)}>
+                حفظ التعديلات
+              </Button>
+            </div>
+          )}
+          {!initialService && publishReason && (
+            <p className="text-end text-xs text-amber-800">
+              {publishReason}
+              {!canActivate && (
+                <>
+                  {' '}
+                  <button type="button" onClick={onOpenSettings} className="font-bold text-indigo-700 underline underline-offset-2">
+                    أكمل بيانات الإعدادات
+                  </button>
+                </>
+              )}
+            </p>
+          )}
+          <div className="flex justify-end">
+            <button type="button" onClick={onClose} className="px-2 py-1 text-sm text-slate-600 hover:text-slate-900">
+              إلغاء
+            </button>
+          </div>
         </div>
       </form>
     </Modal>

@@ -25,6 +25,13 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/providers/$(uid)).data.verificationStatus == 'approved');
     }
 
+    function validCloudinaryImage(data, field) {
+      return !(field in data)
+        || (data[field] is string
+          && data[field].matches('^https://res\\.cloudinary\\.com/.*$')
+          && data[field].size() < 500);
+    }
+
     function validTimestamp(value) {
       return value is string && value.size() > 0 && value.size() <= 64;
     }
@@ -130,8 +137,11 @@ service cloud.firestore {
           'contactPhone', 'servicesOffered', 'tags', 'website', 'address',
           'coverColor', 'licenseNumber', 'city', 'verificationStatus',
           'submittedAt', 'updatedAt', 'contactPerson', 'landline',
-          'workingHours', 'addressDetails'
+          'workingHours', 'addressDetails', 'establishedYear',
+          'accreditationBody', 'verifiedLicenseNumber', 'logoUrl', 'bannerUrl'
         ])
+        && validCloudinaryImage(request.resource.data, 'logoUrl')
+        && validCloudinaryImage(request.resource.data, 'bannerUrl')
         && (!('verificationStatus' in request.resource.data) || request.resource.data.verificationStatus == 'pending')
         && request.resource.data.accredited == resource.data.accredited);
       allow delete: if admin();
@@ -151,25 +161,27 @@ service cloud.firestore {
         && request.resource.data.numericPrice >= 0
         && request.resource.data.status in ['draft', 'active', 'closed']
         && (request.resource.data.status != 'active' || providerApproved(request.auth.uid))
+        && (request.resource.data.status != 'active' || validServiceFields(request.resource.data))
         && request.resource.data.keys().hasOnly([
           'title', 'category', 'level', 'duration', 'priceNote', 'numericPrice',
           'currency', 'description', 'seatsAvailable', 'totalSeats', 'status',
           'mode', 'modules', 'schedule', 'instructorName', 'instructorRole',
+          'instructorId',
           'prerequisites', 'featured', 'providerId', 'providerName', 'rating',
           'reviewsCount', 'createdAt', 'updatedAt', 'minStudents',
           'canStartBelowMin', 'paymentMethods', 'freeLessonsCount', 'startDate'
-        ])
-        && validServiceFields(request.resource.data);
+        ]);
       allow update: if admin() || (signedIn()
         && resource.data.providerId == request.auth.uid
         && request.resource.data.providerId == resource.data.providerId
         && (request.resource.data.status != 'active' || providerApproved(request.auth.uid))
         && (resource.data.pausedByAdmin != true || request.resource.data.status == resource.data.status)
-        && validServiceFields(request.resource.data)
+        && (request.resource.data.status != 'active' || validServiceFields(request.resource.data))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'title', 'category', 'level', 'duration', 'priceNote', 'numericPrice',
           'currency', 'description', 'seatsAvailable', 'totalSeats', 'status',
           'mode', 'modules', 'schedule', 'instructorName', 'instructorRole',
+          'instructorId',
           'prerequisites', 'featured', 'updatedAt', 'minStudents',
           'canStartBelowMin', 'paymentMethods', 'freeLessonsCount', 'startDate'
         ]));

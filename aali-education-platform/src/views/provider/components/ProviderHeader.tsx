@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Bell, BookOpen, Building2, CheckCircle2, Plus } from 'lucide-react';
 import { EducationalProvider, StudentNotification, ActiveView } from '../../../types';
 import { Button } from '../../../components/ui/Button';
@@ -31,11 +31,20 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({
   onMarkNotificationRead,
 }) => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [failedLogoUrl, setFailedLogoUrl] = useState('');
+  const [failedBannerUrl, setFailedBannerUrl] = useState('');
   const verificationStatus = provider?.accredited || provider?.verificationStatus === 'approved'
     ? 'approved'
     : provider?.verificationStatus || 'pending';
   const statusLabel = verificationStatus === 'approved' ? 'معتمد' : verificationStatus === 'rejected' ? 'بحاجة إلى استكمال' : 'بانتظار المراجعة';
   const institutionName = provider?.name || currentType.institutionName || 'مزود الخدمة';
+  const logoUrl = provider?.logoUrl || '';
+  const bannerUrl = provider?.bannerUrl || provider?.bannerImageUrl || '';
+
+  useEffect(() => {
+    setFailedLogoUrl('');
+    setFailedBannerUrl('');
+  }, [logoUrl, bannerUrl]);
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
@@ -47,10 +56,21 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({
         <span className="text-[11px] text-slate-500">بيانات الحساب من Firebase</span>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-          <div className={`w-12 h-12 rounded-xl ${currentType.avatarBg} text-white flex items-center justify-center font-bold text-base shadow-xs shrink-0`}>
-            {institutionName.slice(0, 2)}
+      <div className="relative isolate max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        {bannerUrl && failedBannerUrl !== bannerUrl && (
+          <img
+            src={bannerUrl}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 z-0 h-full w-full object-cover opacity-10"
+            onError={() => setFailedBannerUrl(bannerUrl)}
+          />
+        )}
+        <div className="relative z-10 flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className={`w-12 h-12 overflow-hidden rounded-xl ${currentType.avatarBg} text-white flex items-center justify-center font-bold text-base shadow-xs shrink-0`}>
+            {logoUrl && failedLogoUrl !== logoUrl
+              ? <img src={logoUrl} alt={`شعار ${institutionName}`} className="h-full w-full object-cover" onError={() => setFailedLogoUrl(logoUrl)} />
+              : institutionName.trim().slice(0, 2)}
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-0.5">
@@ -69,7 +89,7 @@ export const ProviderHeader: React.FC<ProviderHeaderProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="relative z-10 flex items-center gap-2 sm:gap-3 shrink-0">
           <div className="relative">
             <button
               onClick={() => setIsNotifOpen(!isNotifOpen)}

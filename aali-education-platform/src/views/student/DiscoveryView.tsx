@@ -402,15 +402,17 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                         </CardTitle>
 
                         <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 mt-3">
-                          <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 font-medium">
-                            {course.level}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3 text-slate-400" />
-                            {course.duration}
-                          </span>
-                          <span aria-hidden="true">·</span>
+                          {course.level.trim() && (
+                            <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-800 font-medium">
+                              {course.level}
+                            </span>
+                          )}
+                          {course.duration.trim() && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-slate-400" />
+                              {course.duration}
+                            </span>
+                          )}
                           <span className="text-slate-600 font-medium">
                             {course.mode === 'online' ? 'أونلاين' : course.mode === 'hybrid' ? 'مدمج' : 'حضوري'}
                           </span>
@@ -418,9 +420,11 @@ export const DiscoveryView: React.FC<DiscoveryViewProps> = ({
                       </CardHeader>
 
                       <CardContent>
-                        <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed mb-4">
-                          {course.description}
-                        </p>
+                        {course.description.trim() && (
+                          <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed mb-4">
+                            {course.description}
+                          </p>
+                        )}
 
                         <div className="flex items-center justify-between text-sm pt-3 border-t border-slate-100">
                           <div>

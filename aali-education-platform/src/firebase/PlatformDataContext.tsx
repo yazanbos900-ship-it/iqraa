@@ -64,6 +64,8 @@ interface PlatformDataContextValue {
     workingHours: string;
     addressDetails: NonNullable<EducationalProvider['addressDetails']>;
   }) => Promise<void>;
+  saveProviderBranding: (field: 'logoUrl' | 'bannerUrl', url: string | null) => Promise<void>;
+  saveProviderCustomization: (details: Partial<EducationalProvider>) => Promise<void>;
   getPayoutInfo: () => Promise<ProviderPayoutInfo | null>;
   savePayoutInfo: (details: ProviderPayoutInfo) => Promise<void>;
   addTeamMember: (member: Omit<StaffMember, 'id'>) => Promise<void>;
@@ -124,6 +126,7 @@ const asService = (id: string, data: Record<string, unknown>): EducationalServic
     ...(Array.isArray(data.modules) ? { modules: data.modules as EducationalService['modules'] } : {}),
     ...(typeof data.schedule === 'string' ? { schedule: data.schedule } : {}),
     ...(typeof data.instructorName === 'string' ? { instructorName: data.instructorName } : {}),
+    ...(typeof data.instructorId === 'string' ? { instructorId: data.instructorId } : {}),
     ...(typeof data.instructorRole === 'string' ? { instructorRole: data.instructorRole } : {}),
     ...(Array.isArray(data.prerequisites) ? { prerequisites: valueAsStringArray(data.prerequisites) } : {}),
     ...(typeof data.featured === 'boolean' ? { featured: data.featured } : {}),
@@ -183,6 +186,20 @@ const asProvider = (id: string, data: Record<string, unknown>): EducationalProvi
         district: valueAsString((data.addressDetails as Record<string, unknown>).district),
         street: valueAsString((data.addressDetails as Record<string, unknown>).street),
         number: valueAsString((data.addressDetails as Record<string, unknown>).number),
+      },
+    } : {}),
+    ...(typeof data.logoUrl === 'string' ? { logoUrl: data.logoUrl } : {}),
+    ...(typeof data.bannerUrl === 'string' ? { bannerUrl: data.bannerUrl } : {}),
+    ...(typeof data.bannerImageUrl === 'string' ? { bannerImageUrl: data.bannerImageUrl } : {}),
+    ...(Array.isArray(data.galleryImageUrls) ? { galleryImageUrls: valueAsStringArray(data.galleryImageUrls) } : {}),
+    ...(typeof data.socialLinks === 'object' && data.socialLinks !== null && !Array.isArray(data.socialLinks) ? {
+      socialLinks: {
+        instagram: valueAsString((data.socialLinks as Record<string, unknown>).instagram),
+        facebook: valueAsString((data.socialLinks as Record<string, unknown>).facebook),
+        linkedin: valueAsString((data.socialLinks as Record<string, unknown>).linkedin),
+        youtube: valueAsString((data.socialLinks as Record<string, unknown>).youtube),
+        tiktok: valueAsString((data.socialLinks as Record<string, unknown>).tiktok),
+        whatsapp: valueAsString((data.socialLinks as Record<string, unknown>).whatsapp),
       },
     } : {}),
   };
@@ -378,6 +395,42 @@ export const PlatformDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     });
   }, [user, userProfile]);
 
+  const saveProviderCustomization = useCallback(async (details: Partial<EducationalProvider>) => {
+    if (!user || userProfile?.role !== 'provider') throw new Error('تخصيص صفحة المؤسسة متاح لحساب مزود خدمة.');
+    const {
+      id: _ignoredId,
+      providerId: _ignoredOwner,
+      accredited: _ignoredAccreditation,
+      accountStatus: _ignoredAccountStatus,
+      commissionRate: _ignoredCommission,
+      ...profileDetails
+    } = details;
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'providers', user.uid), {
+      ...profileDetails,
+      updatedAt: new Date().toISOString(),
+    });
+    if (typeof profileDetails.name === 'string') {
+      batch.update(doc(db, 'users', user.uid), {
+        displayName: profileDetails.name.trim(),
+        institutionName: profileDetails.name.trim(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    await batch.commit();
+  }, [user, userProfile]);
+
+  const saveProviderBranding = useCallback(async (field: 'logoUrl' | 'bannerUrl', url: string | null) => {
+    if (!user || userProfile?.role !== 'provider') throw new Error('تحديث صور المؤسسة متاح لحساب مزود خدمة.');
+    if (url !== null && (!url.startsWith('https://res.cloudinary.com/') || url.length >= 500)) {
+      throw new Error('رابط الصورة يجب أن يكون رابط Cloudinary صالحاً وأقل من 500 حرف.');
+    }
+    await updateDoc(doc(db, 'providers', user.uid), {
+      [field]: url === null ? deleteField() : url,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [user, userProfile]);
+
   const getPayoutInfo = useCallback(async () => {
     if (!user || userProfile?.role !== 'provider') throw new Error('عرض بيانات الاستلام متاح لحساب مزود خدمة.');
     const snapshot = await getDoc(doc(db, 'providers', user.uid, 'private', 'payout'));
@@ -491,8 +544,8 @@ export const PlatformDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const value = useMemo(() => ({
     services, providers, categories, enrollments, inquiries, teamMembers, reviews, savedServiceIds,
     catalogLoading, catalogError, dataError,
-    saveService, updateProvider, submitProviderVerification, saveProviderProfile, saveProviderOrganizationDetails, getPayoutInfo, savePayoutInfo, addTeamMember, replyToReview, removeService, updateService, clearAdminServicePause, createInquiry, updateInquiry, createEnrollment, toggleSavedService,
-  }), [services, providers, categories, enrollments, inquiries, teamMembers, reviews, savedServiceIds, catalogLoading, catalogError, dataError, saveService, updateProvider, submitProviderVerification, saveProviderProfile, saveProviderOrganizationDetails, getPayoutInfo, savePayoutInfo, addTeamMember, replyToReview, removeService, updateService, clearAdminServicePause, createInquiry, updateInquiry, createEnrollment, toggleSavedService]);
+    saveService, updateProvider, submitProviderVerification, saveProviderProfile, saveProviderOrganizationDetails, saveProviderBranding, saveProviderCustomization, getPayoutInfo, savePayoutInfo, addTeamMember, replyToReview, removeService, updateService, clearAdminServicePause, createInquiry, updateInquiry, createEnrollment, toggleSavedService,
+  }), [services, providers, categories, enrollments, inquiries, teamMembers, reviews, savedServiceIds, catalogLoading, catalogError, dataError, saveService, updateProvider, submitProviderVerification, saveProviderProfile, saveProviderOrganizationDetails, saveProviderBranding, saveProviderCustomization, getPayoutInfo, savePayoutInfo, addTeamMember, replyToReview, removeService, updateService, clearAdminServicePause, createInquiry, updateInquiry, createEnrollment, toggleSavedService]);
 
   return <PlatformDataContext.Provider value={value}>{children}</PlatformDataContext.Provider>;
 };

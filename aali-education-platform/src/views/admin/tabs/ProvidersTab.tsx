@@ -11,6 +11,7 @@ import { Modal } from '../../../components/ui/Modal';
 import { Select } from '../../../components/ui/Select';
 import { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from '../../../components/ui/Table';
 import { EducationalProvider } from '../../../types';
+import { ProviderProfileCustomizer } from '../../provider/components/ProviderProfileCustomizer';
 
 type ProviderStatus = 'approved' | 'pending' | 'suspended' | 'rejected' | 'unverified';
 
@@ -43,6 +44,7 @@ export const ProvidersTab: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [commissionProvider, setCommissionProvider] = useState<EducationalProvider | null>(null);
+  const [customizingProvider, setCustomizingProvider] = useState<EducationalProvider | null>(null);
   const [commissionRate, setCommissionRate] = useState('10');
   const [commissionError, setCommissionError] = useState('');
   const [suspendProviderTarget, setSuspendProviderTarget] = useState<EducationalProvider | null>(null);
@@ -116,6 +118,24 @@ export const ProvidersTab: React.FC = () => {
 
   if (catalogLoading) return <LoadingSpinner label="جارٍ تحميل المؤسسات" />;
   if (catalogError) return <Alert type="error">تعذر تحميل بيانات Firestore: {catalogError}</Alert>;
+  if (customizingProvider) {
+    const selectedProvider = providers.find((provider) => provider.id === customizingProvider.id) || customizingProvider;
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">تعديل الصفحة العامة للمؤسسة</h1>
+          <p className="mt-1 text-sm text-slate-600">التعديلات ستظهر على الصفحة نفسها التي يراها زوار المنصة.</p>
+        </div>
+        <ProviderProfileCustomizer
+          key={selectedProvider.id}
+          provider={selectedProvider}
+          onSave={(details) => updateProvider(selectedProvider.id, details)}
+          onShowMessage={(message, type = 'success') => setActionNotice({ type, message })}
+          onCancel={() => setCustomizingProvider(null)}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -175,6 +195,7 @@ export const ProvidersTab: React.FC = () => {
                   <TableCell>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button variant="outline" size="sm" onClick={() => openCommissionModal(provider)}>تعديل العمولة</Button>
+                      <Button variant="outline" size="sm" onClick={() => setCustomizingProvider(provider)}>تخصيص الصفحة</Button>
                       {provider.accountStatus === 'suspended' ? (
                         <Button variant="primary" size="sm" onClick={() => void reactivateProvider(provider)}>إعادة التفعيل</Button>
                       ) : (

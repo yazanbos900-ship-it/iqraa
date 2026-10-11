@@ -150,9 +150,11 @@ export const CourseDetailsView: React.FC<CourseDetailsViewProps> = ({
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-soft-card space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
-                  {course.level}
-                </span>
+                {course.level.trim() && (
+                  <span className="px-3 py-1 rounded-lg text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                    {course.level}
+                  </span>
+                )}
                 <span className="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700">
                   {course.mode === 'online' ? 'تعليم عن بُعد (أونلاين)' : course.mode === 'hybrid' ? 'تعليم مدمج (حضوري وأونلاين)' : 'تعليم حضوري بالمقر'}
                 </span>
@@ -225,30 +227,39 @@ export const CourseDetailsView: React.FC<CourseDetailsViewProps> = ({
           </div>
 
           {/* Description & Overview */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-soft-card space-y-4">
-            <h2 className="text-lg font-bold text-slate-900">نظرة عامة على البرنامج والأهداف التعليمية</h2>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              {course.description}
-            </p>
+          {(course.description.trim() || course.duration.trim() || course.schedule?.trim()) && (
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-soft-card space-y-4">
+              <h2 className="text-lg font-bold text-slate-900">نظرة عامة على البرنامج والأهداف التعليمية</h2>
+              {course.description.trim() && (
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  {course.description}
+                </p>
+              )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100 text-xs">
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
-                <div className="flex items-center gap-2 text-slate-500 mb-1">
-                  <Clock className="w-4 h-4 text-indigo-600" />
-                  <span className="font-semibold">المدة الزمنية</span>
+              {(course.duration.trim() || course.schedule?.trim()) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-100 text-xs">
+                  {course.duration.trim() && (
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                      <div className="flex items-center gap-2 text-slate-500 mb-1">
+                        <Clock className="w-4 h-4 text-indigo-600" />
+                        <span className="font-semibold">المدة الزمنية</span>
+                      </div>
+                      <div className="font-bold text-slate-900 text-sm">{course.duration}</div>
+                    </div>
+                  )}
+                  {course.schedule?.trim() && (
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+                      <div className="flex items-center gap-2 text-slate-500 mb-1">
+                        <Calendar className="w-4 h-4 text-indigo-600" />
+                        <span className="font-semibold">المواعيد والجدول</span>
+                      </div>
+                      <div className="font-bold text-slate-900 text-sm">{course.schedule}</div>
+                    </div>
+                  )}
                 </div>
-                <div className="font-bold text-slate-900 text-sm">{course.duration}</div>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80">
-                <div className="flex items-center gap-2 text-slate-500 mb-1">
-                  <Calendar className="w-4 h-4 text-indigo-600" />
-                  <span className="font-semibold">المواعيد والجدول</span>
-                </div>
-                <div className="font-bold text-slate-900 text-sm">{course.schedule || 'لم يُضف جدول بعد'}</div>
-              </div>
+              )}
             </div>
-          </div>
+          )}
 
           {/* Syllabus / Modules */}
           {course.modules && course.modules.length > 0 && (
@@ -342,7 +353,7 @@ export const CourseDetailsView: React.FC<CourseDetailsViewProps> = ({
                 </span>
                 <span className="text-sm font-bold text-indigo-700">{course.currency}</span>
               </div>
-              <p className="text-xs text-slate-500 mt-1">{course.priceNote}</p>
+              {course.priceNote.trim() && <p className="text-xs text-slate-500 mt-1">{course.priceNote}</p>}
             </div>
 
             {/* Seats progress indicator */}
